@@ -1,187 +1,174 @@
-<p align="center">
-  <img src="https://raw.githubusercontent.com/haris-musa/excel-mcp-server/main/assets/logo.png" alt="Excel MCP Server Logo" width="300"/>
-</p>
+# xlwings-mcp-server
 
-[![PyPI version](https://img.shields.io/pypi/v/excel-mcp-server.svg)](https://pypi.org/project/excel-mcp-server/)
-[![Total Downloads](https://static.pepy.tech/badge/excel-mcp-server)](https://pepy.tech/project/excel-mcp-server)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
-[![smithery badge](https://smithery.ai/badge/@haris-musa/excel-mcp-server)](https://smithery.ai/server/@haris-musa/excel-mcp-server)
-[![Install MCP Server](https://cursor.com/deeplink/mcp-install-dark.svg)](https://cursor.com/install-mcp?name=excel-mcp-server&config=eyJjb21tYW5kIjoidXZ4IGV4Y2VsLW1jcC1zZXJ2ZXIgc3RkaW8ifQ%3D%3D)
+[![Python](https://img.shields.io/badge/python-%3E%3D3.10-blue)](https://www.python.org/)
+[![xlwings](https://img.shields.io/badge/xlwings-%3E%3D0.30.0-green)](https://www.xlwings.org/)
 
-A Model Context Protocol (MCP) server that lets you manipulate Excel files without needing Microsoft Excel installed. Create, read, and modify Excel workbooks with your AI agent.
+A Model Context Protocol (MCP) server that manipulates Excel files using **xlwings** - providing native Excel integration through COM automation.
 
-## Features
+## 🎯 Why xlwings Instead of openpyxl?
 
-- 📊 **Excel Operations**: Create, read, update workbooks and worksheets
-- 📈 **Data Manipulation**: Formulas, formatting, charts, pivot tables, and Excel tables
-- 🔍 **Data Validation**: Built-in validation for ranges, formulas, and data integrity
-- 🎨 **Formatting**: Font styling, colors, borders, alignment, and conditional formatting
-- 📋 **Table Operations**: Create and manage Excel tables with custom styling
-- 📊 **Chart Creation**: Generate various chart types (line, bar, pie, scatter, etc.)
-- 🔄 **Pivot Tables**: Create dynamic pivot tables for data analysis
-- 🔧 **Sheet Management**: Copy, rename, delete worksheets with ease
-- 🔌 **Triple transport support**: stdio, SSE (deprecated), and streamable HTTP
-- 🌐 **Remote & Local**: Works both locally and as a remote service
+**This MCP server is specifically designed for corporate environments where:**
+- 🔒 Document security policies prevent direct file access
+- 🏢 Excel files are managed by enterprise document management systems
+- 📊 You need to work with Excel through official Microsoft APIs
+- ✅ IT compliance requires using approved COM automation
 
-## Installation
+**Key difference**: While openpyxl directly reads/writes Excel files (which may be blocked by security policies), xlwings controls Excel through Microsoft's official COM interface - the same way VBA macros work. This means if you can run Excel macros, you can use this MCP server.
+
+## 🙏 Acknowledgments
+
+**This project is based on [excel-mcp-server](https://github.com/haris-musa/excel-mcp-server) by Haris Musa.**
+
+The original excel-mcp-server uses openpyxl for Excel manipulation. This fork has been modified to use xlwings instead, which provides:
+- Native Excel COM automation
+- Better compatibility with complex Excel features
+- Real-time Excel interaction
+- Support for Excel-specific features like native pivot tables and charts
+
+## 📋 License
+
+This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
+
+The original excel-mcp-server is also MIT licensed. Copyright (c) 2025 Haris.
+
+## 🚀 Features
+
+All 25 tools from the original excel-mcp-server are fully functional:
+
+### Core Excel Operations
+- ✅ Create, open, save workbooks
+- ✅ Manage worksheets (create, copy, rename, delete)
+- ✅ Read and write data with validation
+- ✅ Apply formulas and validate syntax
+- ✅ Format cells and ranges
+
+### Advanced Features
+- ✅ Native Excel charts through COM
+- ✅ Real pivot tables (not just data summaries)
+- ✅ Excel tables (ListObjects)
+- ✅ Cell merging and unmerging
+- ✅ Row and column operations
+- ✅ Range operations (copy, delete)
+- ✅ Data validation info
+
+## 📦 Installation
 
 ### Prerequisites
+- **Python 3.10+**
+- **Microsoft Excel** (required for xlwings)
+- **Windows** (recommended) or macOS with Excel
 
-- **Python 3.10+** or **uv** (recommended)
-- **Windows**: Microsoft Excel or xlwings-compatible environment
-- **Claude Code**: MCP server support enabled
+### Setup
 
-### Quick Setup with uv (Recommended)
-
-1. **Install uv** (if not already installed):
-   ```bash
-   # Windows PowerShell
-   irm https://astral.sh/uv/install.ps1 | iex
-   
-   # macOS/Linux
-   curl -LsSf https://astral.sh/uv/install.sh | sh
-   ```
-
-2. **Configure Claude Code**:
-   
-   Edit your Claude Code config file:
-   - **Windows**: `%APPDATA%\Claude\claude_desktop_config.json`
-   - **macOS**: `~/Library/Application Support/Claude/claude_desktop_config.json`
-   - **Linux**: `~/.config/Claude/claude_desktop_config.json`
-
-   Add the following configuration:
-   ```json
-   {
-      "mcpServers": {
-         "xlwings-mcp-server": {
-            "command": "uv",
-            "args": [
-               "run",
-               "--directory",
-               "[YOUR_PROJECT_PATH]/mcp-servers/xlwings-mcp-server",
-               "python",
-               "-m",
-               "excel_mcp",
-               "stdio"
-            ]
-         }
-      }
-   }
-   ```
-   
-   Replace `[YOUR_PROJECT_PATH]` with your actual project directory.
-
-3. **Restart Claude Code** to apply the configuration.
-
-### Alternative: Python Setup
-
-If you prefer using Python directly:
-
+1. Clone the repository:
 ```bash
-cd [YOUR_PROJECT_PATH]/mcp-servers/xlwings-mcp-server
+git clone https://github.com/hyunjae-labs/xlwings-mcp-server.git
+cd xlwings-mcp-server
+```
+
+2. Create virtual environment:
+```bash
 python -m venv .venv
 .venv\Scripts\activate  # Windows
-# source .venv/bin/activate  # macOS/Linux
+# or
+source .venv/bin/activate  # macOS/Linux
+```
+
+3. Install in development mode:
+```bash
 pip install -e .
 ```
 
-Then configure Claude Code with:
+## 🔧 Configuration
+
+Add to your Claude Code MCP configuration:
+
 ```json
 {
-   "mcpServers": {
-      "xlwings-mcp-server": {
-         "command": "[YOUR_PROJECT_PATH]/mcp-servers/xlwings-mcp-server/.venv/Scripts/python",
-         "args": ["-m", "excel_mcp", "stdio"]
-      }
-   }
+  "mcpServers": {
+    "xlwings-mcp-server": {
+      "type": "stdio",
+      "command": "C:\\path\\to\\xlwings-mcp-server\\.venv\\Scripts\\python.exe",
+      "args": ["-m", "xlwings_mcp", "stdio"]
+    }
+  }
 }
 ```
 
-## Usage
+## 📚 Available Tools
 
-The server supports three transport methods:
+The server provides 25 tools for Excel manipulation:
 
-### 1. Stdio Transport (for local use)
+### Workbook Operations (3)
+- `create_workbook` - Create new Excel file
+- `create_worksheet` - Add new worksheet
+- `get_workbook_metadata` - Get workbook information
 
-```bash
-# Using uv
-uv run --directory [YOUR_PROJECT_PATH]/mcp-servers/xlwings-mcp-server python -m excel_mcp stdio
+### Data Operations (5)
+- `write_data_to_excel` - Write data to cells
+- `read_data_from_excel` - Read cell data
+- `apply_formula` - Apply Excel formulas
+- `validate_formula_syntax` - Validate formula syntax
+- `validate_excel_range` - Validate cell ranges
 
-# Using Python directly
-python -m excel_mcp stdio
-```
+### Formatting & Visual (5)
+- `format_range` - Apply cell formatting
+- `create_chart` - Create Excel charts
+- `create_pivot_table` - Create pivot tables
+- `create_table` - Create Excel tables
+- `merge_cells` - Merge cell ranges
 
-### 2. SSE Transport (Server-Sent Events - Deprecated)
+### Sheet Management (6)
+- `copy_worksheet` - Copy worksheets
+- `delete_worksheet` - Delete worksheets
+- `rename_worksheet` - Rename worksheets
+- `unmerge_cells` - Unmerge cells
+- `get_merged_cells` - Get merged cell info
+- `copy_range` - Copy cell ranges
 
-```bash
-python -m excel_mcp sse
-```
+### Row/Column Operations (6)
+- `delete_range` - Delete cell ranges
+- `get_data_validation_info` - Get validation rules
+- `insert_rows` - Insert rows
+- `insert_columns` - Insert columns
+- `delete_sheet_rows` - Delete rows
+- `delete_sheet_columns` - Delete columns
 
-Configure with `"url": "http://localhost:8000/sse"`
+## 🔄 When to Use Which?
 
-### 3. Streamable HTTP Transport (Recommended for remote connections)
+### Use **excel-mcp-server** (Original) when:
+- ✅ You don't have Excel installed
+- ✅ You need cross-platform support
+- ✅ You want faster performance
+- ✅ Simple Excel operations are sufficient
 
-```bash
-python -m excel_mcp streamable-http
-```
+### Use **xlwings-mcp-server** (This Fork) when:
+- ✅ Corporate security blocks direct file access
+- ✅ You need to work with protected/encrypted Excel files
+- ✅ You require native Excel features (real pivot tables, complex charts)
+- ✅ Your organization mandates using official Microsoft APIs
+- ✅ You need real-time Excel integration
 
-Configure with `"url": "http://localhost:8000/mcp"`
+| Feature | excel-mcp-server (Original) | xlwings-mcp-server (This Fork) |
+|---------|----------------------------|--------------------------------|
+| **How it works** | Direct file manipulation | Controls Excel application |
+| **Security Policy** | May be blocked | Works if macros are allowed |
+| **Excel Required** | No | Yes |
+| **Best for** | Personal use, servers | Corporate environments |
 
-## Environment Variables & File Path Handling
+## 🤝 Contributing
 
-### SSE and Streamable HTTP Transports
+Contributions are welcome! Please feel free to submit issues or pull requests.
 
-When running the server with the **SSE or Streamable HTTP protocols**, you **must set the `EXCEL_FILES_PATH` environment variable on the server side**. This variable tells the server where to read and write Excel files.
-- If not set, it defaults to `./excel_files`.
+## 📄 Citation
 
-You can also set the `FASTMCP_PORT` environment variable to control the port the server listens on (default is `8000` if not set).
-- Example (Windows PowerShell):
-  ```powershell
-  $env:EXCEL_FILES_PATH="E:\MyExcelFiles"
-  $env:FASTMCP_PORT="8007"
-  uvx excel-mcp-server streamable-http
-  ```
-- Example (Linux/macOS):
-  ```bash
-  EXCEL_FILES_PATH=/path/to/excel_files FASTMCP_PORT=8007 uvx excel-mcp-server streamable-http
-  ```
+If you use this project, please acknowledge both:
+1. The original [excel-mcp-server](https://github.com/haris-musa/excel-mcp-server) by Haris Musa
+2. This xlwings modification
 
-### Stdio Transport
+## 🔗 Links
 
-When using the **stdio protocol**, the file path is provided with each tool call, so you do **not** need to set `EXCEL_FILES_PATH` on the server. The server will use the path sent by the client for each operation.
-
-## Available Tools
-
-The server provides a comprehensive set of Excel manipulation tools. See [TOOLS.md](TOOLS.md) for complete documentation of all available tools.
-
-### Quick Verification
-
-Test your installation:
-```bash
-# Test with uv
-uv run --directory [YOUR_PROJECT_PATH]/mcp-servers/xlwings-mcp-server python -m excel_mcp --help
-
-# Test with Python
-python -m excel_mcp --help
-```
-
-In Claude Code, try:
-```
-"Create an Excel file at C:\test.xlsx"
-"Write 'Hello World' to cell A1"
-"Read the data from Sheet1"
-```
-
-## Troubleshooting
-
-- **"MCP server not found"**: Check your path in Claude Code config
-- **"xlwings import error"**: Run `pip install xlwings`
-- **Excel connection issues on Windows**: Ensure Microsoft Excel is installed
-
-## Star History
-
-[![Star History Chart](https://api.star-history.com/svg?repos=haris-musa/excel-mcp-server&type=Date)](https://www.star-history.com/#haris-musa/excel-mcp-server&Date)
-
-## License
-
-MIT License - see [LICENSE](LICENSE) for details.
+- **Original Project**: [excel-mcp-server](https://github.com/haris-musa/excel-mcp-server)
+- **xlwings Documentation**: [xlwings.org](https://www.xlwings.org/)
+- **MCP Protocol**: [Model Context Protocol](https://modelcontextprotocol.io/)

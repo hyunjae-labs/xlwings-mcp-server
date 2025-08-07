@@ -1,6 +1,7 @@
 MIT License
 
-Copyright (c) 2025 Haris
+Copyright (c) 2025 Haris (Original excel-mcp-server)
+Copyright (c) 2025 hyunjae-labs (xlwings modifications)
 
 Permission is hereby granted, free of charge, to any person obtaining a copy
 of this software and associated documentation files (the "Software"), to deal
@@ -19,3 +20,8 @@ AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
 LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
+
+---
+
+This project is based on excel-mcp-server by Haris
+Original repository: https://github.com/haris-musa/excel-mcp-server
