@@ -2,7 +2,8 @@
 
 ## 사전 준비
 1. **Python 설치** → [python.org](https://www.python.org/downloads/) 에서 다운로드
-   - **추천 버전: Python 3.13** (최신 안정 버전)
+   - **검증된 버전: Python 3.13.5** (이 가이드 작성 및 테스트 완료 버전)
+   - 다른 버전이 이미 설치되어 있다면 재설치 불필요 - 기존 버전으로 진행
    - 설치할 때 **"Add Python to PATH"** 체크 필수
 2. **VSCode + Continue 확장** 설치되어 있어야 함
 
