@@ -7,7 +7,7 @@ from mcp.server.fastmcp import FastMCP
 # Excel 엔진: xlwings 구현으로 완전 전환 완료
 
 # Import exceptions
-from excel_mcp.exceptions import (
+from xlwings_mcp.exceptions import (
     ValidationError,
     WorkbookError,
     SheetError,
@@ -18,9 +18,9 @@ from excel_mcp.exceptions import (
     ChartError
 )
 
-# Import from excel_mcp package (only functions still used by server)
-from excel_mcp.workbook import get_workbook_info
-from excel_mcp.sheet import (
+# Import from xlwings_mcp package (only functions still used by server)
+from xlwings_mcp.workbook import get_workbook_info
+from xlwings_mcp.sheet import (
     copy_sheet,
     delete_sheet,
     rename_sheet,
@@ -100,7 +100,7 @@ def apply_formula(
         
         # xlwings 구현
         logger.info("🔥 Using XLWINGS implementation for apply_formula")
-        from excel_mcp.xlwings_impl.calculations_xlw import apply_formula_xlw
+        from xlwings_mcp.xlwings_impl.calculations_xlw import apply_formula_xlw
         result = apply_formula_xlw(full_path, sheet_name, cell, formula)
         return result.get("message", "Formula applied successfully") if "error" not in result else f"Error: {result['error']}"
             
@@ -123,7 +123,7 @@ def validate_formula_syntax(
         
         # xlwings 구현
         logger.info("🔥 Using XLWINGS implementation for validate_formula_syntax")
-        from excel_mcp.xlwings_impl.formatting_xlw import validate_formula_syntax_xlw
+        from xlwings_mcp.xlwings_impl.formatting_xlw import validate_formula_syntax_xlw
         result = validate_formula_syntax_xlw(full_path, sheet_name, cell, formula)
         return result.get("message", "Formula validation completed") if "error" not in result else f"Error: {result['error']}"
     except (ValidationError, CalculationError) as e:
@@ -159,7 +159,7 @@ def format_range(
         
         # xlwings 구현
         logger.info("🔥 Using XLWINGS implementation for format_range")
-        from excel_mcp.xlwings_impl.formatting_xlw import format_range_xlw
+        from xlwings_mcp.xlwings_impl.formatting_xlw import format_range_xlw
         result = format_range_xlw(
             filepath=full_path,
             sheet_name=sheet_name,
@@ -211,7 +211,7 @@ def read_data_from_excel(
         full_path = get_excel_path(filepath)
         
         # xlwings 구현 사용
-        from excel_mcp.xlwings_impl.data_xlw import read_data_from_excel_xlw
+        from xlwings_mcp.xlwings_impl.data_xlw import read_data_from_excel_xlw
         return read_data_from_excel_xlw(full_path, sheet_name, start_cell, end_cell, preview_only)
         
     except Exception as e:
@@ -240,7 +240,7 @@ def write_data_to_excel(
         full_path = get_excel_path(filepath)
         
         # xlwings 구현
-        from excel_mcp.xlwings_impl.data_xlw import write_data_to_excel_xlw
+        from xlwings_mcp.xlwings_impl.data_xlw import write_data_to_excel_xlw
         result = write_data_to_excel_xlw(full_path, sheet_name, data, start_cell)
         return result.get("message", "Data written successfully") if "error" not in result else f"Error: {result['error']}"
             
@@ -255,7 +255,7 @@ def create_workbook(filepath: str) -> str:
     """Create new Excel workbook."""
     try:
         full_path = get_excel_path(filepath)
-        from excel_mcp.workbook import create_workbook as create_workbook_impl
+        from xlwings_mcp.workbook import create_workbook as create_workbook_impl
         create_workbook_impl(full_path)
         return f"Created workbook at {full_path}"
     except WorkbookError as e:
@@ -269,7 +269,7 @@ def create_worksheet(filepath: str, sheet_name: str) -> str:
     """Create new worksheet in workbook."""
     try:
         full_path = get_excel_path(filepath)
-        from excel_mcp.workbook import create_sheet as create_worksheet_impl
+        from xlwings_mcp.workbook import create_sheet as create_worksheet_impl
         result = create_worksheet_impl(full_path, sheet_name)
         return result["message"]
     except (ValidationError, WorkbookError) as e:
@@ -295,7 +295,7 @@ def create_chart(
         
         # xlwings 구현
         logger.info("🔥 Using XLWINGS implementation for create_chart")
-        from excel_mcp.xlwings_impl.advanced_xlw import create_chart_xlw
+        from xlwings_mcp.xlwings_impl.advanced_xlw import create_chart_xlw
         result = create_chart_xlw(
             filepath=full_path,
             sheet_name=sheet_name,
@@ -329,7 +329,7 @@ def create_pivot_table(
         
         # xlwings 구현
         logger.info("🔥 Using XLWINGS implementation for create_pivot_table")
-        from excel_mcp.xlwings_impl.advanced_xlw import create_pivot_table_xlw
+        from xlwings_mcp.xlwings_impl.advanced_xlw import create_pivot_table_xlw
         result = create_pivot_table_xlw(
             filepath=full_path,
             sheet_name=sheet_name,
@@ -360,7 +360,7 @@ def create_table(
         
         # xlwings 구현
         logger.info("🔥 Using XLWINGS implementation for create_table")
-        from excel_mcp.xlwings_impl.advanced_xlw import create_table_xlw
+        from xlwings_mcp.xlwings_impl.advanced_xlw import create_table_xlw
         result = create_table_xlw(
             filepath=full_path,
             sheet_name=sheet_name,
@@ -435,7 +435,7 @@ def get_workbook_metadata(
         full_path = get_excel_path(filepath)
         
         # xlwings 구현
-        from excel_mcp.xlwings_impl.workbook_xlw import get_workbook_metadata_xlw
+        from xlwings_mcp.xlwings_impl.workbook_xlw import get_workbook_metadata_xlw
         result = get_workbook_metadata_xlw(full_path, include_ranges=include_ranges)
         if "error" in result:
             return f"Error: {result['error']}"
@@ -498,7 +498,7 @@ def copy_range(
     """Copy a range of cells to another location."""
     try:
         full_path = get_excel_path(filepath)
-        from excel_mcp.sheet import copy_range_operation
+        from xlwings_mcp.sheet import copy_range_operation
         result = copy_range_operation(
             full_path,
             sheet_name,
@@ -525,7 +525,7 @@ def delete_range(
     """Delete a range of cells and shift remaining cells."""
     try:
         full_path = get_excel_path(filepath)
-        from excel_mcp.sheet import delete_range_operation
+        from xlwings_mcp.sheet import delete_range_operation
         result = delete_range_operation(
             full_path,
             sheet_name,
@@ -552,7 +552,7 @@ def validate_excel_range(
         full_path = get_excel_path(filepath)
         
         # xlwings 구현
-        from excel_mcp.xlwings_impl.validation_xlw import validate_excel_range_xlw
+        from xlwings_mcp.xlwings_impl.validation_xlw import validate_excel_range_xlw
         result = validate_excel_range_xlw(full_path, sheet_name, start_cell, end_cell)
         return result.get("message", "Range validation completed") if "error" not in result else f"Error: {result['error']}"
             
@@ -585,7 +585,7 @@ def get_data_validation_info(
         
         # xlwings 구현
         logger.info("🔥 Using XLWINGS implementation for get_data_validation_info")
-        from excel_mcp.xlwings_impl.validation_xlw import get_data_validation_info_xlw
+        from xlwings_mcp.xlwings_impl.validation_xlw import get_data_validation_info_xlw
         result = get_data_validation_info_xlw(full_path, sheet_name)
         if "error" in result:
             return f"Error: {result['error']}"
@@ -609,7 +609,7 @@ def insert_rows(
         
         # xlwings 구현
         logger.info("🔥 Using XLWINGS implementation for insert_rows")
-        from excel_mcp.xlwings_impl.rows_cols_xlw import insert_rows_xlw
+        from xlwings_mcp.xlwings_impl.rows_cols_xlw import insert_rows_xlw
         result = insert_rows_xlw(full_path, sheet_name, start_row, count)
         if "error" in result:
             return f"Error: {result['error']}"
@@ -633,7 +633,7 @@ def insert_columns(
         
         # xlwings 구현
         logger.info("🔥 Using XLWINGS implementation for insert_columns")
-        from excel_mcp.xlwings_impl.rows_cols_xlw import insert_columns_xlw
+        from xlwings_mcp.xlwings_impl.rows_cols_xlw import insert_columns_xlw
         result = insert_columns_xlw(full_path, sheet_name, start_col, count)
         if "error" in result:
             return f"Error: {result['error']}"
@@ -657,7 +657,7 @@ def delete_sheet_rows(
         
         # xlwings 구현
         logger.info("🔥 Using XLWINGS implementation for delete_sheet_rows")
-        from excel_mcp.xlwings_impl.rows_cols_xlw import delete_sheet_rows_xlw
+        from xlwings_mcp.xlwings_impl.rows_cols_xlw import delete_sheet_rows_xlw
         result = delete_sheet_rows_xlw(full_path, sheet_name, start_row, count)
         if "error" in result:
             return f"Error: {result['error']}"
@@ -681,7 +681,7 @@ def delete_sheet_columns(
         
         # xlwings 구현
         logger.info("🔥 Using XLWINGS implementation for delete_sheet_columns")
-        from excel_mcp.xlwings_impl.rows_cols_xlw import delete_sheet_columns_xlw
+        from xlwings_mcp.xlwings_impl.rows_cols_xlw import delete_sheet_columns_xlw
         result = delete_sheet_columns_xlw(full_path, sheet_name, start_col, count)
         if "error" in result:
             return f"Error: {result['error']}"
