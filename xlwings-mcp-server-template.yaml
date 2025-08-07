@@ -1,0 +1,11 @@
+name: xlwings-mcp-server
+version: 0.1.6
+description: Excel MCP Server using xlwings for native Excel COM automation
+schema: v1
+mcpServers:
+  - name: xlwings-mcp-server
+    command: "D:/03_Archives/Obsidain/01_Obsidian_Hyundai/xlwings-mcp-server/.venv/Scripts/python.exe"
+    args:
+      - "-m"
+      - "xlwings_mcp"
+      - "stdio"
