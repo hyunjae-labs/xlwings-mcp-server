@@ -3,7 +3,11 @@ dist/
 excel_files/
 __pycache__/
 .notes/
-*.log# Development files
+*.log
+# Development files
 XLWINGS_*.md
 .venv/
 *.log
+
+# Personal config files
+xlwings-mcp-server-template.yaml

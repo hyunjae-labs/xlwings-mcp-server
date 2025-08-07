@@ -59,8 +59,12 @@ All 25 tools from the original excel-mcp-server are fully functional:
 - **Microsoft Excel** (required for xlwings)
 - **Windows** (recommended) or macOS with Excel
 
-### Setup
+### Option 1: Install from PyPI (Recommended)
+```bash
+pip install xlwings-mcp-server
+```
 
+### Option 2: Install from Source
 1. Clone the repository:
 ```bash
 git clone https://github.com/hyunjae-labs/xlwings-mcp-server.git
