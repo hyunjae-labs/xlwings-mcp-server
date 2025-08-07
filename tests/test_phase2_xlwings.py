@@ -15,8 +15,7 @@ import pytest
 import tempfile
 from pathlib import Path
 
-# 환경변수 설정 - 테스트 시 xlwings 사용
-os.environ['USE_XLWINGS'] = 'true'
+# xlwings 구현 테스트
 
 from src.excel_mcp.workbook import create_workbook, create_sheet
 from src.excel_mcp.sheet import copy_sheet, delete_sheet, rename_sheet

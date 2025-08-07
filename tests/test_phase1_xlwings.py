@@ -9,8 +9,7 @@ import unittest
 import json
 from pathlib import Path
 
-# 테스트를 위해 xlwings 모드 활성화
-os.environ["USE_XLWINGS"] = "true"
+# xlwings 구현 테스트
 
 try:
     from excel_mcp.xlwings_impl.data_xlw import read_data_from_excel_xlw, write_data_to_excel_xlw

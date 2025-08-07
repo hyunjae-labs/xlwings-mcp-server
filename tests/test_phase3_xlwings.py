@@ -12,8 +12,7 @@ from pathlib import Path
 # Add parent directory to path for imports
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-# Force xlwings mode for testing
-os.environ['USE_XLWINGS'] = 'true'
+# xlwings 구현 테스트
 
 from src.excel_mcp.xlwings_impl.range_xlw import (
     merge_cells_xlw,
