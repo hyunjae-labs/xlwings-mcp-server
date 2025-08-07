@@ -52,6 +52,15 @@ def read_data_from_excel_xlw(
         
         ws = wb.sheets[sheet_name]
         
+        # Set default start_cell if not provided
+        if not start_cell:
+            # Find first non-empty cell or default to A1
+            used_range = ws.used_range
+            if used_range:
+                start_cell = used_range.address.split(":")[0].replace("$", "")
+            else:
+                start_cell = "A1"
+        
         # 범위 결정
         if end_cell:
             # 명시적 범위 사용
@@ -137,7 +146,7 @@ def write_data_to_excel_xlw(
     filepath: str,
     sheet_name: str,
     data: List[List],
-    start_cell: str = "A1"
+    start_cell: Optional[str] = None
 ) -> Dict[str, str]:
     """xlwings를 사용한 데이터 쓰기
     
@@ -177,6 +186,17 @@ def write_data_to_excel_xlw(
             wb.sheets.add(sheet_name)
         
         ws = wb.sheets[sheet_name]
+        
+        # Set default start_cell if not provided
+        if not start_cell:
+            # Find appropriate location for writing
+            used_range = ws.used_range
+            if used_range:
+                # If sheet has data, find empty area below it
+                last_row = used_range.last_cell.row
+                start_cell = f"A{last_row + 2}"  # Leave one row gap
+            else:
+                start_cell = "A1"
         
         # 데이터 쓰기
         range_obj = ws.range(start_cell)

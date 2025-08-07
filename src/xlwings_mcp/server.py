@@ -189,7 +189,7 @@ def format_range(
 def read_data_from_excel(
     filepath: str,
     sheet_name: str,
-    start_cell: str = "A1",
+    start_cell: Optional[str] = None,
     end_cell: Optional[str] = None,
     preview_only: bool = False
 ) -> str:
@@ -223,7 +223,7 @@ def write_data_to_excel(
     filepath: str,
     sheet_name: str,
     data: List[List],
-    start_cell: str = "A1",
+    start_cell: Optional[str] = None,
 ) -> str:
     """
     Write data to Excel worksheet.
@@ -233,7 +233,7 @@ def write_data_to_excel(
     filepath: Path to Excel file
     sheet_name: Name of worksheet to write to
     data: List of lists containing data to write to the worksheet, sublists are assumed to be rows
-    start_cell: Cell to start writing to, default is "A1"
+    start_cell: Cell to start writing to (optional, auto-finds appropriate location)
   
     """
     try:
@@ -321,9 +321,25 @@ def create_pivot_table(
     rows: List[str],
     values: List[str],
     columns: Optional[List[str]] = None,
-    agg_func: str = "mean"
+    agg_func: str = "mean",
+    target_sheet: Optional[str] = None,
+    target_cell: Optional[str] = None,
+    pivot_name: Optional[str] = None
 ) -> str:
-    """Create pivot table in worksheet."""
+    """Create pivot table in worksheet.
+    
+    Args:
+        filepath: Path to Excel file
+        sheet_name: Name of worksheet containing source data
+        data_range: Source data range (e.g., "A1:E100" or "Sheet2!A1:E100")
+        rows: Field names for row labels
+        values: Field names for values
+        columns: Field names for column labels (optional)
+        agg_func: Aggregation function (sum, count, average, max, min)
+        target_sheet: Target sheet for pivot table (optional, auto-created if not exists)
+        target_cell: Target cell for pivot table (optional, finds empty area if not provided)
+        pivot_name: Custom name for pivot table (optional, auto-generated if not provided)
+    """
     try:
         full_path = get_excel_path(filepath)
         
@@ -337,8 +353,17 @@ def create_pivot_table(
             rows=rows,
             values=values,
             columns=columns,
-            agg_func=agg_func
+            agg_func=agg_func,
+            target_sheet=target_sheet,
+            target_cell=target_cell,
+            pivot_name=pivot_name
         )
+        
+        # Handle warnings in response
+        if "warnings" in result and result["warnings"]:
+            warning_msg = "; ".join(result["warnings"])
+            return f"{result.get('message', 'Pivot table created')} (Warnings: {warning_msg})"
+        
         return result.get("message", "Pivot table created successfully") if "error" not in result else f"Error: {result['error']}"
     except (ValidationError, PivotError) as e:
         return f"Error: {str(e)}"

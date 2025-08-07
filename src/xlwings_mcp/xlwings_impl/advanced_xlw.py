@@ -100,8 +100,14 @@ def create_chart_xlw(
         target = sheet.range(target_cell)
         chart.top = target.top
         chart.left = target.left
-        chart.width = 400  # Default width
-        chart.height = 300  # Default height
+        
+        # Calculate chart size based on data range
+        data_rows = data_range_obj.rows.count
+        data_cols = data_range_obj.columns.count
+        
+        # Dynamic sizing based on data
+        chart.width = min(600, max(400, data_cols * 80))  # Adjust width based on columns
+        chart.height = min(450, max(300, data_rows * 15))  # Adjust height based on rows
         
         # Set chart properties safely
         try:
@@ -161,19 +167,25 @@ def create_pivot_table_xlw(
     rows: List[str],
     values: List[str],
     columns: Optional[List[str]] = None,
-    agg_func: str = "sum"
+    agg_func: str = "sum",
+    target_sheet: Optional[str] = None,
+    target_cell: str = None,
+    pivot_name: Optional[str] = None
 ) -> Dict[str, Any]:
     """
     Create a pivot table in Excel using xlwings.
     
     Args:
         filepath: Path to Excel file
-        sheet_name: Name of worksheet
-        data_range: Source data range (e.g., "A1:E100")
+        sheet_name: Name of worksheet containing source data
+        data_range: Source data range (e.g., "A1:E100" or "Sheet2!A1:E100")
         rows: Field names for row labels
         values: Field names for values
         columns: Field names for column labels (optional)
         agg_func: Aggregation function (sum, count, average, max, min)
+        target_sheet: Target sheet for pivot table (optional)
+        target_cell: Target cell for pivot table (optional, default finds empty area)
+        pivot_name: Custom name for pivot table (optional)
         
     Returns:
         Dict with success message or error
@@ -197,19 +209,47 @@ def create_pivot_table_xlw(
         if sheet_name not in sheet_names:
             return {"error": f"Sheet '{sheet_name}' not found"}
         
-        sheet = wb.sheets[sheet_name]
+        # Parse data range to support cross-sheet references
+        if "!" in data_range:
+            # Format: "SheetName!A1:E100"
+            source_sheet_name, range_part = data_range.split("!", 1)
+            # Remove quotes if present
+            source_sheet_name = source_sheet_name.strip("'\"")
+            if source_sheet_name not in sheet_names:
+                return {"error": f"Source sheet '{source_sheet_name}' not found"}
+            source_sheet = wb.sheets[source_sheet_name]
+            source_range = source_sheet.range(range_part)
+        else:
+            # Use the provided sheet_name
+            source_sheet = wb.sheets[sheet_name]
+            source_range = source_sheet.range(data_range)
         
-        # Create a new sheet for pivot table
-        pivot_sheet_name = "PivotTable"
-        counter = 1
-        while pivot_sheet_name in sheet_names:
-            pivot_sheet_name = f"PivotTable{counter}"
-            counter += 1
+        # Determine target sheet for pivot table
+        if target_sheet:
+            # Use specified target sheet
+            if target_sheet not in sheet_names:
+                # Create if doesn't exist
+                pivot_sheet = wb.sheets.add(target_sheet)
+            else:
+                pivot_sheet = wb.sheets[target_sheet]
+        else:
+            # Auto-generate unique pivot sheet name
+            pivot_sheet_name = "PivotTable"
+            counter = 1
+            while pivot_sheet_name in sheet_names:
+                pivot_sheet_name = f"PivotTable{counter}"
+                counter += 1
+            pivot_sheet = wb.sheets.add(pivot_sheet_name)
         
-        pivot_sheet = wb.sheets.add(pivot_sheet_name)
-        
-        # Get source data range
-        source_range = sheet.range(data_range)
+        # Determine target cell position
+        if not target_cell:
+            # Find empty area automatically
+            used_range = pivot_sheet.used_range
+            if used_range:
+                # Place below existing content with some spacing
+                target_cell = f"A{used_range.last_cell.row + 3}"
+            else:
+                target_cell = "A3"  # Default position if sheet is empty
         
         # Use COM API to create pivot table
         pivot_cache = wb.api.PivotCaches().Create(
@@ -217,80 +257,148 @@ def create_pivot_table_xlw(
             SourceData=source_range.api
         )
         
+        # Generate unique pivot table name if not provided
+        if not pivot_name:
+            existing_pivots = []
+            try:
+                # Try to get existing pivot table names
+                for sheet in wb.sheets:
+                    try:
+                        sheet_pivots = sheet.api.PivotTables()
+                        for i in range(1, sheet_pivots.Count + 1):
+                            existing_pivots.append(sheet_pivots.Item(i).Name)
+                    except:
+                        pass
+            except:
+                pass
+            
+            # Generate unique name
+            pivot_name = "PivotTable1"
+            counter = 1
+            while pivot_name in existing_pivots:
+                counter += 1
+                pivot_name = f"PivotTable{counter}"
+        
         pivot_table = pivot_cache.CreatePivotTable(
-            TableDestination=pivot_sheet.range("A3").api,
-            TableName="PivotTable1"
+            TableDestination=pivot_sheet.range(target_cell).api,
+            TableName=pivot_name
         )
         
-        # Get field names from first row of data
-        header_range = sheet.range(data_range).rows[0]
+        # Get field names from first row of data (use source_range which is already parsed)
+        header_range = source_range.rows[0]
         field_names = [cell.value for cell in header_range]
+        
+        # Track warnings for partial failures
+        warnings = []
         
         # Add row fields - try different COM API access methods
         for row_field in rows:
             if row_field in field_names:
+                success = False
                 try:
                     # Method 1: Direct string access
                     field = pivot_table.PivotFields(row_field)
                     field.Orientation = 1  # xlRowField
+                    success = True
                 except:
                     try:
                         # Method 2: Index access
                         field_index = field_names.index(row_field) + 1
                         field = pivot_table.PivotFields(field_index)
                         field.Orientation = 1  # xlRowField
+                        success = True
                     except Exception as e:
-                        logger.warning(f"Failed to add row field {row_field}: {e}")
+                        error_msg = f"Failed to add row field '{row_field}': {str(e)}"
+                        logger.warning(error_msg)
+                        warnings.append(error_msg)
+            else:
+                warnings.append(f"Row field '{row_field}' not found in data headers")
         
         # Add column fields
         if columns:
             for col_field in columns:
                 if col_field in field_names:
+                    success = False
                     try:
                         # Method 1: Direct string access
                         field = pivot_table.PivotFields(col_field)
                         field.Orientation = 2  # xlColumnField
+                        success = True
                     except:
                         try:
                             # Method 2: Index access
                             field_index = field_names.index(col_field) + 1
                             field = pivot_table.PivotFields(field_index)
                             field.Orientation = 2  # xlColumnField
+                            success = True
                         except Exception as e:
-                            logger.warning(f"Failed to add column field {col_field}: {e}")
+                            error_msg = f"Failed to add column field '{col_field}': {str(e)}"
+                            logger.warning(error_msg)
+                            warnings.append(error_msg)
+                else:
+                    warnings.append(f"Column field '{col_field}' not found in data headers")
         
         # Add value fields with aggregation
-        agg_map = {
-            'sum': -4157,      # xlSum
-            'count': -4112,    # xlCount
-            'average': -4106,  # xlAverage
-            'max': -4136,      # xlMax
-            'min': -4139,      # xlMin
-        }
-        
-        agg_constant = agg_map.get(agg_func.lower(), -4157)  # Default to sum
+        # Note: Aggregation function setting is simplified for stability
+        # Users can change aggregation type in Excel after creation
         
         for value_field in values:
             if value_field in field_names:
+                success = False
                 try:
                     # Method 1: Direct string access
                     field = pivot_table.PivotFields(value_field)
                     field.Orientation = 4  # xlDataField
-                    # Set aggregation function
-                    if pivot_table.DataFields.Count > 0:
-                        data_field = pivot_table.DataFields(1)  # First data field
-                        data_field.Function = agg_constant
+                    success = True
+                    logger.info(f"Added value field '{value_field}' successfully")
                 except:
                     try:
                         # Method 2: Index access
                         field_index = field_names.index(value_field) + 1
                         field = pivot_table.PivotFields(field_index)
                         field.Orientation = 4  # xlDataField
-                        if pivot_table.DataFields.Count > 0:
-                            data_field = pivot_table.DataFields(1)
-                            data_field.Function = agg_constant
+                        success = True
+                        logger.info(f"Added value field '{value_field}' using index")
                     except Exception as e:
-                        logger.warning(f"Failed to add value field {value_field}: {e}")
+                        error_msg = f"Failed to add value field '{value_field}': {str(e)}"
+                        logger.warning(error_msg)
+                        warnings.append(error_msg)
+                
+                # Try to set aggregation function if field was added successfully
+                # This is optional - if it fails, the default (usually Sum) will be used
+                if success and agg_func.lower() != 'sum':
+                    try:
+                        # Safer approach: iterate through DataFields to find our field
+                        agg_map = {
+                            'count': -4112,    # xlCount
+                            'average': -4106,  # xlAverage
+                            'mean': -4106,     # xlAverage (alias)
+                            'max': -4136,      # xlMax
+                            'min': -4139,      # xlMin
+                        }
+                        
+                        if agg_func.lower() in agg_map:
+                            # Wait a moment for COM to update
+                            import time
+                            time.sleep(0.1)
+                            
+                            # Try to find and update the data field
+                            for i in range(1, pivot_table.DataFields.Count + 1):
+                                try:
+                                    data_field = pivot_table.DataFields(i)
+                                    # Check if this is our field (name contains the original field name)
+                                    if value_field in str(data_field.SourceName):
+                                        data_field.Function = agg_map[agg_func.lower()]
+                                        logger.info(f"Set aggregation to {agg_func} for {value_field}")
+                                        break
+                                except:
+                                    continue
+                    except Exception as e:
+                        # Non-critical: aggregation function setting failed
+                        logger.debug(f"Could not set aggregation function for {value_field}: {e}")
+                        # Don't add to warnings - field was added successfully
+            else:
+                warnings.append(f"Value field '{value_field}' not found in data headers")
         
         # Apply default pivot table style
         pivot_table.TableStyle2 = "PivotStyleMedium9"
@@ -298,16 +406,28 @@ def create_pivot_table_xlw(
         # Save the workbook
         wb.save()
         
-        logger.info(f"✅ Successfully created pivot table in {pivot_sheet_name}")
-        return {
-            "message": f"Successfully created pivot table",
-            "pivot_sheet": pivot_sheet_name,
+        # Prepare result
+        result = {
+            "message": f"Successfully created pivot table '{pivot_name}'",
+            "pivot_name": pivot_name,
+            "pivot_sheet": pivot_sheet.name,
+            "pivot_cell": target_cell,
             "source_range": data_range,
+            "source_sheet": source_sheet.name,
             "rows": rows,
             "columns": columns or [],
             "values": values,
             "aggregation": agg_func
         }
+        
+        # Add warnings if any
+        if warnings:
+            result["warnings"] = warnings
+            logger.info(f"⚠️ Pivot table created with warnings: {warnings}")
+        else:
+            logger.info(f"✅ Successfully created pivot table '{pivot_name}' at {pivot_sheet.name}!{target_cell}")
+        
+        return result
         
     except Exception as e:
         logger.error(f"❌ Error creating pivot table: {str(e)}")

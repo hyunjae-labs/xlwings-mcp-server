@@ -5,7 +5,7 @@ Phase 1: get_workbook_metadata
 
 import os
 import logging
-from typing import Dict, Any
+from typing import Dict, Any, Optional
 from pathlib import Path
 
 import xlwings as xw
@@ -124,18 +124,22 @@ def get_workbook_metadata_xlw(
 
 def create_workbook_xlw(
     filepath: str,
-    sheet_name: str = "Sheet1"
+    sheet_name: Optional[str] = None
 ) -> Dict[str, Any]:
     """xlwings를 사용한 새 워크북 생성
     
     Args:
         filepath: 생성할 파일 경로
-        sheet_name: 기본 시트명
+        sheet_name: 기본 시트명 (optional, defaults to Excel's default)
         
     Returns:
         생성 결과 딕셔너리
     """
     try:
+        # Use Excel's default sheet name if not provided
+        if not sheet_name:
+            sheet_name = "Sheet1"  # Excel's default
+        
         # Excel context로 새 워크북 생성
         with excel_context(filepath, create_if_not_exists=True, sheet_name=sheet_name) as wb:
             # 워크북이 이미 저장되었으므로 추가 작업 없음
