@@ -35,8 +35,8 @@ where python
 ```
 출력 예시들:
 - `C:\Python313\python.exe`
-- `C:\Users\홍길동\AppData\Local\Programs\Python\Python313\python.exe`
-- `C:\Users\hj92l\miniconda3\python.exe`
+- `C:\Users\[사용자명]\AppData\Local\Programs\Python\Python313\python.exe`
+- `C:\Users\[사용자명]\miniconda3\python.exe`
 
 **주의: 실제 출력된 경로를 복사하세요**
 
@@ -97,7 +97,7 @@ pip install xlwings-mcp-server
 
 # Python 경로 확인
 where python
-# 결과: C:\Users\사용자\xlwings-mcp-server\.venv\Scripts\python.exe
+# 결과: C:\Users\[사용자명]\xlwings-mcp-server\.venv\Scripts\python.exe
 ```
 
 이후 Continue 설정은 방법 1의 4-5단계와 동일 (경로만 다름)
@@ -121,7 +121,7 @@ python -m venv .venv
 pip install xlwings-mcp-server
 where python
 ```
-마지막 명령어 결과 복사 (예: `C:\Users\사용자\xlwings-mcp-server\.venv\Scripts\python.exe`)
+마지막 명령어 결과 복사 (예: `C:\Users\[사용자명]\xlwings-mcp-server\.venv\Scripts\python.exe`)
 
 ### 3. Continue 설정 파일 생성
 1. 폴더 열기: `%USERPROFILE%\.continue\mcpServers`
@@ -135,7 +135,7 @@ description: Excel MCP Server
 schema: v1
 mcpServers:
   - name: xlwings-mcp-server
-    command: "C:/Users/사용자/xlwings-mcp-server/.venv/Scripts/python.exe"
+    command: "C:/Users/[사용자명]/xlwings-mcp-server/.venv/Scripts/python.exe"
     args: ["-m", "xlwings_mcp", "stdio"]
 ```
 ⚠️ 경로의 `\`를 `/`로 변경
