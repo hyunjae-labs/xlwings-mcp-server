@@ -6,6 +6,10 @@
 
 A Model Context Protocol (MCP) server that manipulates Excel files using **xlwings** - providing native Excel integration through COM automation.
 
+<a href="https://glama.ai/mcp/servers/@hyunjae-labs/xlwings-mcp-server">
+  <img width="380" height="200" src="https://glama.ai/mcp/servers/@hyunjae-labs/xlwings-mcp-server/badge" alt="xlwings Excel Server MCP server" />
+</a>
+
 ## 🎯 Why xlwings Instead of openpyxl?
 
 **This MCP server is specifically designed for corporate environments where:**
