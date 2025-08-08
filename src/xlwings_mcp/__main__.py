@@ -3,7 +3,18 @@ import typer
 
 from .server import run_sse, run_stdio, run_streamable_http
 
-app = typer.Typer(help="Excel MCP Server")
+app = typer.Typer(
+    help="Excel MCP Server",
+    invoke_without_command=True  # 명령 없이 실행 가능
+)
+
+@app.callback()
+def callback(ctx: typer.Context):
+    """
+    기본 명령어 없이 실행 시 stdio 모드로 실행
+    """
+    if ctx.invoked_subcommand is None:
+        stdio()
 
 @app.command()
 def sse():
