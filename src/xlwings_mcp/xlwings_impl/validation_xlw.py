@@ -317,3 +317,150 @@ def validate_excel_range_xlw(
             wb.close()
         if app:
             app.quit()
+
+def get_data_validation_info_xlw_with_wb(
+    wb,
+    sheet_name: str
+) -> Dict[str, Any]:
+    """
+    Session-based data validation info retrieval using existing workbook object.
+    
+    Args:
+        wb: Workbook object from session
+        sheet_name: Name of worksheet
+        
+    Returns:
+        Dict containing all validation rules in the worksheet
+    """
+    try:
+        logger.info(f"🔍 Getting data validation info for {sheet_name}")
+        
+        # Check if sheet exists
+        sheet_names = [s.name for s in wb.sheets]
+        if sheet_name not in sheet_names:
+            return {"error": f"Sheet '{sheet_name}' not found"}
+        
+        sheet = wb.sheets[sheet_name]
+        
+        # Access worksheet COM object for validation
+        ws_com = sheet.api
+        
+        validation_rules = []
+        processed_ranges = set()
+        
+        # Get used range to scan for validation
+        try:
+            used_range = sheet.used_range
+            if used_range:
+                # Iterate through cells to find validation rules
+                # Note: This is more efficient than checking every cell
+                # We'll check representative cells and expand to find full ranges
+                
+                max_row = used_range.last_cell.row
+                max_col = used_range.last_cell.column
+                
+                # Sample cells to check (every 5th cell for efficiency)
+                for row in range(1, max_row + 1, 5):
+                    for col in range(1, max_col + 1, 5):
+                        try:
+                            cell = sheet.range((row, col))
+                            cell_address = cell.address.replace('$', '')
+                            
+                            # Skip if already processed
+                            if cell_address in processed_ranges:
+                                continue
+                            
+                            # Check if cell has validation using COM API
+                            cell_com = cell.api
+                            validation = cell_com.Validation
+                            
+                            # Check if validation exists (Type > 0 means validation is present)
+                            if hasattr(validation, 'Type') and validation.Type > 0:
+                                # Found validation, now find the full range
+                                validation_info = {
+                                    "range": cell_address,
+                                    "type": get_validation_type_name(validation.Type),
+                                    "operator": None,
+                                    "formula1": None,
+                                    "formula2": None,
+                                    "error_message": None,
+                                    "input_message": None,
+                                    "show_error": True,
+                                    "show_input": True
+                                }
+                                
+                                # Get validation details
+                                try:
+                                    if hasattr(validation, 'Operator'):
+                                        validation_info["operator"] = get_operator_name(validation.Operator)
+                                except:
+                                    pass
+                                
+                                try:
+                                    if hasattr(validation, 'Formula1'):
+                                        validation_info["formula1"] = str(validation.Formula1)
+                                except:
+                                    pass
+                                
+                                try:
+                                    if hasattr(validation, 'Formula2'):
+                                        validation_info["formula2"] = str(validation.Formula2)
+                                except:
+                                    pass
+                                
+                                try:
+                                    if hasattr(validation, 'ErrorMessage'):
+                                        validation_info["error_message"] = validation.ErrorMessage
+                                except:
+                                    pass
+                                
+                                try:
+                                    if hasattr(validation, 'InputMessage'):
+                                        validation_info["input_message"] = validation.InputMessage
+                                except:
+                                    pass
+                                
+                                try:
+                                    if hasattr(validation, 'ShowError'):
+                                        validation_info["show_error"] = bool(validation.ShowError)
+                                except:
+                                    pass
+                                
+                                try:
+                                    if hasattr(validation, 'ShowInput'):
+                                        validation_info["show_input"] = bool(validation.ShowInput)
+                                except:
+                                    pass
+                                
+                                # Try to find the full range with this validation
+                                # by checking adjacent cells
+                                full_range = expand_validation_range(sheet, row, col, validation)
+                                validation_info["range"] = full_range
+                                
+                                # Mark cells as processed
+                                for r in range(row, row + 10):
+                                    for c in range(col, col + 10):
+                                        processed_ranges.add(f"{chr(64+c)}{r}")
+                                
+                                validation_rules.append(validation_info)
+                                
+                        except Exception as e:
+                            # Cell might not have validation, continue
+                            continue
+                
+        except Exception as e:
+            logger.warning(f"Error scanning for validation rules: {e}")
+        
+        # Return validation information
+        result = {
+            "sheet": sheet_name,
+            "validation_count": len(validation_rules),
+            "validation_rules": validation_rules
+        }
+        
+        logger.info(f"✅ Found {len(validation_rules)} validation rules in {sheet_name}")
+        return result
+        
+    except Exception as e:
+        logger.error(f"Error getting validation info: {e}")
+        return {"error": str(e)}

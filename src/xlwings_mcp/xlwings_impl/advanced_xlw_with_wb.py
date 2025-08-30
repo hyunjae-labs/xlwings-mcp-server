@@ -1,24 +1,16 @@
 """
-xlwings implementation for advanced Excel features.
-Includes charts, pivot tables, and Excel tables functionality.
+Session-based versions of advanced xlwings functions.
+These functions use existing workbook objects instead of opening/closing Excel apps.
 """
 
 import xlwings as xw
 from typing import Dict, Any, List, Optional
 import logging
-import os
 
 logger = logging.getLogger(__name__)
 
-# Import session-based functions
-from .advanced_xlw_with_wb import (
-    create_chart_xlw_with_wb,
-    create_pivot_table_xlw_with_wb,
-    create_table_xlw_with_wb
-)
-
-def create_chart_xlw(
-    filepath: str,
+def create_chart_xlw_with_wb(
+    wb,
     sheet_name: str,
     data_range: str,
     chart_type: str,
@@ -27,11 +19,10 @@ def create_chart_xlw(
     x_axis: str = "",
     y_axis: str = ""
 ) -> Dict[str, Any]:
-    """
-    Create a chart in Excel using xlwings.
+    """Session-based version using existing workbook object.
     
     Args:
-        filepath: Path to Excel file
+        wb: Workbook object from session
         sheet_name: Name of worksheet
         data_range: Range of data for chart (e.g., "A1:C10")
         chart_type: Type of chart (line, bar, pie, scatter, area, column)
@@ -43,19 +34,8 @@ def create_chart_xlw(
     Returns:
         Dict with success message or error
     """
-    app = None
-    wb = None
-    
     try:
         logger.info(f"📈 Creating {chart_type} chart in {sheet_name}")
-        
-        # Check if file exists
-        if not os.path.exists(filepath):
-            return {"error": f"File not found: {filepath}"}
-        
-        # Open Excel app and workbook
-        app = xw.App(visible=False, add_book=False)
-        wb = app.books.open(filepath)
         
         # Check if sheet exists
         sheet_names = [s.name for s in wb.sheets]
@@ -159,16 +139,9 @@ def create_chart_xlw(
     except Exception as e:
         logger.error(f"❌ Error creating chart: {str(e)}")
         return {"error": str(e)}
-        
-    finally:
-        if wb:
-            wb.close()
-        if app:
-            app.quit()
 
-
-def create_pivot_table_xlw(
-    filepath: str,
+def create_pivot_table_xlw_with_wb(
+    wb,
     sheet_name: str,
     data_range: str,
     rows: List[str],
@@ -179,11 +152,10 @@ def create_pivot_table_xlw(
     target_cell: str = None,
     pivot_name: Optional[str] = None
 ) -> Dict[str, Any]:
-    """
-    Create a pivot table in Excel using xlwings.
+    """Session-based version using existing workbook object.
     
     Args:
-        filepath: Path to Excel file
+        wb: Workbook object from session
         sheet_name: Name of worksheet containing source data
         data_range: Source data range (e.g., "A1:E100" or "Sheet2!A1:E100")
         rows: Field names for row labels
@@ -197,19 +169,8 @@ def create_pivot_table_xlw(
     Returns:
         Dict with success message or error
     """
-    app = None
-    wb = None
-    
     try:
         logger.info(f"📊 Creating pivot table in {sheet_name}")
-        
-        # Check if file exists
-        if not os.path.exists(filepath):
-            return {"error": f"File not found: {filepath}"}
-        
-        # Open Excel app and workbook
-        app = xw.App(visible=False, add_book=False)
-        wb = app.books.open(filepath)
         
         # Check if sheet exists
         sheet_names = [s.name for s in wb.sheets]
@@ -221,7 +182,7 @@ def create_pivot_table_xlw(
             # Format: "SheetName!A1:E100"
             source_sheet_name, range_part = data_range.split("!", 1)
             # Remove quotes if present
-            source_sheet_name = source_sheet_name.strip("'\"")
+            source_sheet_name = source_sheet_name.strip('\'"')
             if source_sheet_name not in sheet_names:
                 return {"error": f"Source sheet '{source_sheet_name}' not found"}
             source_sheet = wb.sheets[source_sheet_name]
@@ -346,9 +307,6 @@ def create_pivot_table_xlw(
                     warnings.append(f"Column field '{col_field}' not found in data headers")
         
         # Add value fields with aggregation
-        # Note: Aggregation function setting is simplified for stability
-        # Users can change aggregation type in Excel after creation
-        
         for value_field in values:
             if value_field in field_names:
                 success = False
@@ -372,7 +330,6 @@ def create_pivot_table_xlw(
                         warnings.append(error_msg)
                 
                 # Try to set aggregation function if field was added successfully
-                # This is optional - if it fails, the default (usually Sum) will be used
                 if success and agg_func.lower() != 'sum':
                     try:
                         # Safer approach: iterate through DataFields to find our field
@@ -403,7 +360,6 @@ def create_pivot_table_xlw(
                     except Exception as e:
                         # Non-critical: aggregation function setting failed
                         logger.debug(f"Could not set aggregation function for {value_field}: {e}")
-                        # Don't add to warnings - field was added successfully
             else:
                 warnings.append(f"Value field '{value_field}' not found in data headers")
         
@@ -439,26 +395,18 @@ def create_pivot_table_xlw(
     except Exception as e:
         logger.error(f"❌ Error creating pivot table: {str(e)}")
         return {"error": str(e)}
-        
-    finally:
-        if wb:
-            wb.close()
-        if app:
-            app.quit()
 
-
-def create_table_xlw(
-    filepath: str,
+def create_table_xlw_with_wb(
+    wb,
     sheet_name: str,
     data_range: str,
     table_name: Optional[str] = None,
     table_style: str = "TableStyleMedium9"
 ) -> Dict[str, Any]:
-    """
-    Create an Excel table (ListObject) using xlwings.
+    """Session-based version using existing workbook object.
     
     Args:
-        filepath: Path to Excel file
+        wb: Workbook object from session
         sheet_name: Name of worksheet
         data_range: Range of data to convert to table (e.g., "A1:D10")
         table_name: Name for the table (optional)
@@ -467,19 +415,8 @@ def create_table_xlw(
     Returns:
         Dict with success message or error
     """
-    app = None
-    wb = None
-    
     try:
         logger.info(f"📋 Creating Excel table in {sheet_name}")
-        
-        # Check if file exists
-        if not os.path.exists(filepath):
-            return {"error": f"File not found: {filepath}"}
-        
-        # Open Excel app and workbook
-        app = xw.App(visible=False, add_book=False)
-        wb = app.books.open(filepath)
         
         # Check if sheet exists
         sheet_names = [s.name for s in wb.sheets]
@@ -533,9 +470,3 @@ def create_table_xlw(
     except Exception as e:
         logger.error(f"❌ Error creating table: {str(e)}")
         return {"error": str(e)}
-        
-    finally:
-        if wb:
-            wb.close()
-        if app:
-            app.quit()

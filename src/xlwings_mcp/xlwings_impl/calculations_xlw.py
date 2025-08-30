@@ -169,6 +169,79 @@ def apply_formula_xlw(
             except Exception as e:
                 logger.warning(f"Excel 앱 종료 실패: {e}")
 
+def validate_formula_syntax_xlw_with_wb(
+    wb,
+    sheet_name: str,
+    cell: str,
+    formula: str
+) -> Dict[str, Any]:
+    """Session-based formula syntax validation using existing workbook object.
+    
+    Args:
+        wb: Workbook object from session
+        sheet_name: Sheet name
+        cell: Target cell
+        formula: Formula to validate
+        
+    Returns:
+        Validation result dictionary
+    """
+    try:
+        # Check sheet exists
+        if sheet_name not in [s.name for s in wb.sheets]:
+            return {"error": f"Sheet '{sheet_name}' not found"}
+        
+        ws = wb.sheets[sheet_name]
+        
+        # Normalize formula
+        if not formula.startswith('='):
+            formula = f'={formula}'
+        
+        # Backup original values
+        cell_range = ws.range(cell)
+        original_value = cell_range.value
+        original_formula = cell_range.formula
+        
+        try:
+            # Temporarily apply formula for validation
+            cell_range.formula = formula
+            
+            # Check calculated result
+            preview_value = cell_range.value
+            
+            # Restore original values
+            if original_formula and original_formula.startswith('='):
+                cell_range.formula = original_formula
+            else:
+                cell_range.value = original_value
+            
+            return {
+                "valid": True,
+                "message": "Formula syntax is valid",
+                "formula": formula,
+                "preview_value": preview_value
+            }
+            
+        except Exception as e:
+            # Try to restore original values
+            try:
+                if original_formula and original_formula.startswith('='):
+                    cell_range.formula = original_formula
+                else:
+                    cell_range.value = original_value
+            except Exception:
+                pass
+                
+            return {
+                "valid": False,
+                "message": f"Invalid formula syntax: {str(e)}",
+                "formula": formula
+            }
+        
+    except Exception as e:
+        logger.error(f"xlwings formula validation failed: {e}")
+        return {"error": f"Failed to validate formula: {str(e)}"}
+
 def validate_formula_syntax_xlw(
     filepath: str,
     sheet_name: str,

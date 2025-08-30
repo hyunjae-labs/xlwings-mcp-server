@@ -317,3 +317,179 @@ def validate_formula_syntax_xlw(
             wb.close()
         if app:
             app.quit()
+
+def format_range_xlw_with_wb(
+    wb,
+    sheet_name: str,
+    start_cell: str,
+    end_cell: Optional[str] = None,
+    bold: bool = False,
+    italic: bool = False,
+    underline: bool = False,
+    font_size: Optional[int] = None,
+    font_color: Optional[str] = None,
+    bg_color: Optional[str] = None,
+    border_style: Optional[str] = None,
+    border_color: Optional[str] = None,
+    number_format: Optional[str] = None,
+    alignment: Optional[str] = None,
+    wrap_text: bool = False,
+    merge_cells: bool = False
+) -> Dict[str, Any]:
+    """
+    Session-based range formatting using existing workbook object.
+    
+    Args:
+        wb: Workbook object from session
+        sheet_name: Name of worksheet
+        start_cell: Starting cell for formatting
+        end_cell: Ending cell for formatting (optional, defaults to start_cell)
+        bold: Apply bold formatting
+        italic: Apply italic formatting
+        underline: Apply underline formatting
+        font_size: Font size in points
+        font_color: Font color (hex code or color name)
+        bg_color: Background color (hex code or color name)
+        border_style: Border style (thin, medium, thick, double)
+        border_color: Border color (hex code or color name)
+        number_format: Number format string (e.g., "0.00", "#,##0", "mm/dd/yyyy")
+        alignment: Text alignment (left, center, right, justify)
+        wrap_text: Enable text wrapping
+        merge_cells: Merge the cell range
+        
+    Returns:
+        Dict with success message or error
+    """
+    try:
+        logger.info(f"🎨 Applying formatting to range {start_cell}:{end_cell or start_cell} in {sheet_name}")
+        
+        # Check if sheet exists
+        sheet_names = [s.name for s in wb.sheets]
+        if sheet_name not in sheet_names:
+            return {"error": f"Sheet '{sheet_name}' not found"}
+        
+        sheet = wb.sheets[sheet_name]
+        
+        # Get the range to format
+        if end_cell:
+            range_obj = sheet.range(f"{start_cell}:{end_cell}")
+        else:
+            range_obj = sheet.range(start_cell)
+        
+        # Apply font formatting
+        if bold:
+            range_obj.font.bold = True
+        if italic:
+            range_obj.font.italic = True
+        if underline:
+            range_obj.font.underline = True
+        if font_size:
+            range_obj.font.size = font_size
+        
+        # Apply font color
+        if font_color:
+            try:
+                # Convert hex color to RGB if needed
+                if font_color.startswith('#'):
+                    # Remove # and convert hex to RGB
+                    hex_color = font_color.lstrip('#')
+                    rgb = tuple(int(hex_color[i:i+2], 16) for i in (0, 2, 4))
+                    range_obj.font.color = rgb
+                else:
+                    # Use color name or index
+                    range_obj.font.color = font_color
+            except:
+                logger.warning(f"Could not apply font color: {font_color}")
+        
+        # Apply background color
+        if bg_color:
+            try:
+                if bg_color.startswith('#'):
+                    hex_color = bg_color.lstrip('#')
+                    rgb = tuple(int(hex_color[i:i+2], 16) for i in (0, 2, 4))
+                    range_obj.color = rgb
+                else:
+                    range_obj.color = bg_color
+            except:
+                logger.warning(f"Could not apply background color: {bg_color}")
+        
+        # Apply borders using COM API
+        if border_style:
+            range_com = range_obj.api
+            
+            # Map border styles to Excel constants
+            border_map = {
+                'thin': 1,      # xlThin
+                'medium': -4138, # xlMedium
+                'thick': 4,     # xlThick
+                'double': -4119, # xlDouble
+                'dotted': -4118, # xlDot
+                'dashed': -4115  # xlDash
+            }
+            
+            style_constant = border_map.get(border_style.lower(), 1)
+            
+            # Apply to all borders
+            for border_index in [7, 8, 9, 10]:  # xlEdgeLeft, xlEdgeTop, xlEdgeBottom, xlEdgeRight
+                border = range_com.Borders(border_index)
+                border.LineStyle = style_constant
+                
+                if border_color:
+                    try:
+                        if border_color.startswith('#'):
+                            hex_color = border_color.lstrip('#')
+                            rgb_val = int(hex_color[:2], 16) + (int(hex_color[2:4], 16) << 8) + (int(hex_color[4:6], 16) << 16)
+                            border.Color = rgb_val
+                    except:
+                        pass
+        
+        # Apply number format
+        if number_format:
+            range_obj.number_format = number_format
+        
+        # Apply alignment
+        if alignment:
+            alignment_map = {
+                'left': -4131,    # xlLeft
+                'center': -4108,  # xlCenter
+                'right': -4152,   # xlRight
+                'justify': -4130  # xlJustify
+            }
+            
+            if alignment.lower() in alignment_map:
+                range_obj.api.HorizontalAlignment = alignment_map[alignment.lower()]
+        
+        # Apply text wrapping
+        if wrap_text:
+            range_obj.api.WrapText = True
+        
+        # Merge cells if requested
+        if merge_cells:
+            range_obj.merge()
+        
+        # Save the workbook
+        wb.save()
+        
+        logger.info(f"✅ Successfully applied formatting to range")
+        return {
+            "message": f"Successfully applied formatting to range {start_cell}:{end_cell or start_cell}",
+            "range": f"{start_cell}:{end_cell or start_cell}",
+            "sheet": sheet_name,
+            "formatting_applied": {
+                "bold": bold,
+                "italic": italic,
+                "underline": underline,
+                "font_size": font_size,
+                "font_color": font_color,
+                "bg_color": bg_color,
+                "border_style": border_style,
+                "number_format": number_format,
+                "alignment": alignment,
+                "wrap_text": wrap_text,
+                "merged": merge_cells
+            }
+        }
+        
+    except Exception as e:
+        logger.error(f"❌ Error applying formatting: {str(e)}")
+        return {"error": str(e)}

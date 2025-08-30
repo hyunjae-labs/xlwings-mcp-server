@@ -4,10 +4,17 @@ excel_files/
 __pycache__/
 .notes/
 *.log
+
 # Development files
 XLWINGS_*.md
-.venv/
-*.log
+*.md
 
 # Personal config files
 xlwings-mcp-server-template.yaml
+
+# Archive and temporary files
+archive_temp_files/
+*test_results*.json
+
+# Serena files
+.serena

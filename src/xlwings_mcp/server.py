@@ -199,21 +199,21 @@ def force_close_workbook_by_path_tool(
 
 @mcp.tool()
 def apply_formula(
+    sheet_name: str,
+    cell: str,
+    formula: str,
     session_id: Optional[str] = None,
-    filepath: Optional[str] = None,
-    sheet_name: str = "",
-    cell: str = "",
-    formula: str = "",
+    filepath: Optional[str] = None
 ) -> str:
     """
     Apply Excel formula to cell.
     
     Args:
-        session_id: Session ID from open_workbook (preferred)
-        filepath: Path to Excel file (legacy, deprecated)
         sheet_name: Name of worksheet
         cell: Cell address (e.g., "A1")
         formula: Excel formula to apply
+        session_id: Session ID from open_workbook (preferred)
+        filepath: Path to Excel file (legacy, deprecated)
         
     Note: Use session_id for better performance. filepath parameter is deprecated.
     """
@@ -247,19 +247,44 @@ def apply_formula(
 
 @mcp.tool()
 def validate_formula_syntax(
-    filepath: str,
     sheet_name: str,
     cell: str,
     formula: str,
+    session_id: Optional[str] = None,
+    filepath: Optional[str] = None
 ) -> str:
-    """Validate Excel formula syntax without applying it."""
-    try:
-        full_path = get_excel_path(filepath)
+    """
+    Validate Excel formula syntax without applying it.
+    
+    Args:
+        sheet_name: Name of worksheet
+        cell: Cell address (e.g., "A1")
+        formula: Excel formula to validate
+        session_id: Session ID from open_workbook (preferred)
+        filepath: Path to Excel file (legacy, deprecated)
         
-        # xlwings 구현
-        logger.info("🔥 Using XLWINGS implementation for validate_formula_syntax")
-        from xlwings_mcp.xlwings_impl.formatting_xlw import validate_formula_syntax_xlw
-        result = validate_formula_syntax_xlw(full_path, sheet_name, cell, formula)
+    Note: Use session_id for better performance. filepath parameter is deprecated.
+    """
+    try:
+        # Support both new (session_id) and old (filepath) API
+        if session_id:
+            # New API: use session
+            session = SESSION_MANAGER.get_session(session_id)
+            if not session:
+                return f"Error: Session {session_id} not found. Please open the workbook first using open_workbook()."
+            
+            with session.lock:
+                from xlwings_mcp.xlwings_impl.formatting_xlw import validate_formula_syntax_xlw_with_wb
+                result = validate_formula_syntax_xlw_with_wb(session.workbook, sheet_name, cell, formula)
+        elif filepath:
+            # Legacy API: backwards compatibility
+            logger.warning("Using deprecated filepath parameter. Please use session_id instead.")
+            full_path = get_excel_path(filepath)
+            from xlwings_mcp.xlwings_impl.formatting_xlw import validate_formula_syntax_xlw
+            result = validate_formula_syntax_xlw(full_path, sheet_name, cell, formula)
+        else:
+            return "Error: Either session_id or filepath must be provided"
+        
         return result.get("message", "Formula validation completed") if "error" not in result else f"Error: {result['error']}"
     except (ValidationError, CalculationError) as e:
         return f"Error: {str(e)}"
@@ -269,9 +294,10 @@ def validate_formula_syntax(
 
 @mcp.tool()
 def format_range(
-    filepath: str,
     sheet_name: str,
     start_cell: str,
+    session_id: Optional[str] = None,
+    filepath: Optional[str] = None,
     end_cell: Optional[str] = None,
     bold: bool = False,
     italic: bool = False,
@@ -288,31 +314,86 @@ def format_range(
     protection: Optional[Dict[str, Any]] = None,
     conditional_format: Optional[Dict[str, Any]] = None
 ) -> str:
-    """Apply formatting to a range of cells."""
-    try:
-        full_path = get_excel_path(filepath)
+    """
+    Apply formatting to a range of cells.
+    
+    Args:
+        sheet_name: Name of worksheet
+        start_cell: Starting cell
+        session_id: Session ID from open_workbook (preferred)
+        filepath: Path to Excel file (legacy, deprecated)
+        end_cell: Ending cell (optional)
+        bold: Apply bold formatting
+        italic: Apply italic formatting
+        underline: Apply underline formatting
+        font_size: Font size
+        font_color: Font color
+        bg_color: Background color
+        border_style: Border style
+        border_color: Border color
+        number_format: Number format
+        alignment: Text alignment
+        wrap_text: Enable text wrapping
+        merge_cells: Merge cells in range
+        protection: Cell protection settings (optional)
+        conditional_format: Conditional formatting settings (optional)
         
-        # xlwings 구현
-        logger.info("🔥 Using XLWINGS implementation for format_range")
-        from xlwings_mcp.xlwings_impl.formatting_xlw import format_range_xlw
-        result = format_range_xlw(
-            filepath=full_path,
-            sheet_name=sheet_name,
-            start_cell=start_cell,
-            end_cell=end_cell,
-            bold=bold,
-            italic=italic,
-            underline=underline,
-            font_size=font_size,
-            font_color=font_color,
-            bg_color=bg_color,
-            border_style=border_style,
-            border_color=border_color,
-            number_format=number_format,
-            alignment=alignment,
-            wrap_text=wrap_text,
-            merge_cells=merge_cells
-        )
+    Note: Use session_id for better performance. filepath parameter is deprecated.
+    """
+    try:
+        # Support both new (session_id) and old (filepath) API
+        if session_id:
+            # New API: use session
+            session = SESSION_MANAGER.get_session(session_id)
+            if not session:
+                return f"Error: Session {session_id} not found. Please open the workbook first using open_workbook()."
+            
+            with session.lock:
+                from xlwings_mcp.xlwings_impl.formatting_xlw import format_range_xlw_with_wb
+                result = format_range_xlw_with_wb(
+                    workbook=session.workbook,
+                    sheet_name=sheet_name,
+                    start_cell=start_cell,
+                    end_cell=end_cell,
+                    bold=bold,
+                    italic=italic,
+                    underline=underline,
+                    font_size=font_size,
+                    font_color=font_color,
+                    bg_color=bg_color,
+                    border_style=border_style,
+                    border_color=border_color,
+                    number_format=number_format,
+                    alignment=alignment,
+                    wrap_text=wrap_text,
+                    merge_cells=merge_cells
+                )
+        elif filepath:
+            # Legacy API: backwards compatibility
+            logger.warning("Using deprecated filepath parameter. Please use session_id instead.")
+            full_path = get_excel_path(filepath)
+            from xlwings_mcp.xlwings_impl.formatting_xlw import format_range_xlw
+            result = format_range_xlw(
+                filepath=full_path,
+                sheet_name=sheet_name,
+                start_cell=start_cell,
+                end_cell=end_cell,
+                bold=bold,
+                italic=italic,
+                underline=underline,
+                font_size=font_size,
+                font_color=font_color,
+                bg_color=bg_color,
+                border_style=border_style,
+                border_color=border_color,
+                number_format=number_format,
+                alignment=alignment,
+                wrap_text=wrap_text,
+                merge_cells=merge_cells
+            )
+        else:
+            return "Error: Either session_id or filepath must be provided"
+        
         return result.get("message", "Range formatted successfully") if "error" not in result else f"Error: {result['error']}"
     except (ValidationError, FormattingError) as e:
         return f"Error: {str(e)}"
@@ -322,8 +403,9 @@ def format_range(
 
 @mcp.tool()
 def read_data_from_excel(
-    filepath: str,
     sheet_name: str,
+    session_id: Optional[str] = None,
+    filepath: Optional[str] = None,
     start_cell: Optional[str] = None,
     end_cell: Optional[str] = None,
     preview_only: bool = False
@@ -332,51 +414,82 @@ def read_data_from_excel(
     Read data from Excel worksheet with cell metadata including validation rules.
     
     Args:
-        filepath: Path to Excel file
         sheet_name: Name of worksheet
+        session_id: Session ID from open_workbook (preferred)
+        filepath: Path to Excel file (legacy, deprecated)
         start_cell: Starting cell (default A1)
         end_cell: Ending cell (optional, auto-expands if not provided)
         preview_only: Whether to return preview only
-    
-    Returns:  
-    JSON string containing structured cell data with validation metadata.
-    Each cell includes: address, value, row, column, and validation info (if any).
+        
+    Note: Use session_id for better performance. filepath parameter is deprecated.
     """
     try:
-        full_path = get_excel_path(filepath)
+        # Support both new (session_id) and old (filepath) API
+        if session_id:
+            # New API: use session
+            session = SESSION_MANAGER.get_session(session_id)
+            if not session:
+                return f"Error: Session {session_id} not found. Please open the workbook first using open_workbook()."
+            
+            with session.lock:
+                from xlwings_mcp.xlwings_impl.data_xlw import read_data_from_excel_xlw_with_wb
+                return read_data_from_excel_xlw_with_wb(session.workbook, sheet_name, start_cell, end_cell, preview_only)
+        elif filepath:
+            # Legacy API: backwards compatibility
+            logger.warning("Using deprecated filepath parameter. Please use session_id instead.")
+            full_path = get_excel_path(filepath)
+            from xlwings_mcp.xlwings_impl.data_xlw import read_data_from_excel_xlw
+            return read_data_from_excel_xlw(full_path, sheet_name, start_cell, end_cell, preview_only)
+        else:
+            return "Error: Either session_id or filepath must be provided"
         
-        # xlwings 구현 사용
-        from xlwings_mcp.xlwings_impl.data_xlw import read_data_from_excel_xlw
-        return read_data_from_excel_xlw(full_path, sheet_name, start_cell, end_cell, preview_only)
-        
+    except (ValidationError, DataError) as e:
+        return f"Error: {str(e)}"
     except Exception as e:
         logger.error(f"Error reading data: {e}")
         raise
 
 @mcp.tool()
 def write_data_to_excel(
-    filepath: str,
     sheet_name: str,
     data: List[List],
-    start_cell: Optional[str] = None,
+    session_id: Optional[str] = None,
+    filepath: Optional[str] = None,
+    start_cell: Optional[str] = None
 ) -> str:
     """
     Write data to Excel worksheet.
     Excel formula will write to cell without any verification.
 
-    PARAMETERS:  
-    filepath: Path to Excel file
-    sheet_name: Name of worksheet to write to
-    data: List of lists containing data to write to the worksheet, sublists are assumed to be rows
-    start_cell: Cell to start writing to (optional, auto-finds appropriate location)
-  
+    Args:
+        sheet_name: Name of worksheet to write to
+        data: List of lists containing data to write to the worksheet, sublists are assumed to be rows
+        session_id: Session ID from open_workbook (preferred)
+        filepath: Path to Excel file (legacy, deprecated)
+        start_cell: Cell to start writing to (optional, auto-finds appropriate location)
+        
+    Note: Use session_id for better performance. filepath parameter is deprecated.
     """
     try:
-        full_path = get_excel_path(filepath)
+        # Support both new (session_id) and old (filepath) API
+        if session_id:
+            # New API: use session
+            session = SESSION_MANAGER.get_session(session_id)
+            if not session:
+                return f"Error: Session {session_id} not found. Please open the workbook first using open_workbook()."
+            
+            with session.lock:
+                from xlwings_mcp.xlwings_impl.data_xlw import write_data_to_excel_xlw_with_wb
+                result = write_data_to_excel_xlw_with_wb(session.workbook, sheet_name, data, start_cell)
+        elif filepath:
+            # Legacy API: backwards compatibility
+            logger.warning("Using deprecated filepath parameter. Please use session_id instead.")
+            full_path = get_excel_path(filepath)
+            from xlwings_mcp.xlwings_impl.data_xlw import write_data_to_excel_xlw
+            result = write_data_to_excel_xlw(full_path, sheet_name, data, start_cell)
+        else:
+            return "Error: Either session_id or filepath must be provided"
         
-        # xlwings 구현
-        from xlwings_mcp.xlwings_impl.data_xlw import write_data_to_excel_xlw
-        result = write_data_to_excel_xlw(full_path, sheet_name, data, start_cell)
         return result.get("message", "Data written successfully") if "error" not in result else f"Error: {result['error']}"
             
     except (ValidationError, DataError) as e:
@@ -386,13 +499,41 @@ def write_data_to_excel(
         raise
 
 @mcp.tool()
-def create_workbook(filepath: str) -> str:
-    """Create new Excel workbook."""
+def create_workbook(
+    session_id: Optional[str] = None,
+    filepath: Optional[str] = None
+) -> str:
+    """
+    Create new Excel workbook.
+    
+    Args:
+        session_id: Session ID for creating workbook in existing session (optional)
+        filepath: Path to create new Excel file (legacy, deprecated)
+        
+    Note: Use session_id for better performance. filepath parameter is deprecated.
+    """
     try:
-        full_path = get_excel_path(filepath)
-        from xlwings_mcp.workbook import create_workbook as create_workbook_impl
-        create_workbook_impl(full_path)
-        return f"Created workbook at {full_path}"
+        # Support both new (session_id) and old (filepath) API
+        if session_id:
+            # New API: use session (though this is less common for creating new workbooks)
+            session = SESSION_MANAGER.get_session(session_id)
+            if not session:
+                return f"Error: Session {session_id} not found. Please open the workbook first using open_workbook()."
+            
+            with session.lock:
+                from xlwings_mcp.xlwings_impl.workbook_xlw import create_workbook_xlw_with_wb
+                result = create_workbook_xlw_with_wb(session.workbook)
+                return result.get("message", "Workbook created successfully") if "error" not in result else f"Error: {result['error']}"
+        elif filepath:
+            # Legacy API: backwards compatibility
+            logger.warning("Using deprecated filepath parameter. Please use session_id instead.")
+            full_path = get_excel_path(filepath)
+            from xlwings_mcp.workbook import create_workbook as create_workbook_impl
+            create_workbook_impl(full_path)
+            return f"Created workbook at {full_path}"
+        else:
+            return "Error: Either session_id or filepath must be provided"
+        
     except WorkbookError as e:
         return f"Error: {str(e)}"
     except Exception as e:
@@ -400,13 +541,43 @@ def create_workbook(filepath: str) -> str:
         raise
 
 @mcp.tool()
-def create_worksheet(filepath: str, sheet_name: str) -> str:
-    """Create new worksheet in workbook."""
+def create_worksheet(
+    sheet_name: str,
+    session_id: Optional[str] = None,
+    filepath: Optional[str] = None
+) -> str:
+    """
+    Create new worksheet in workbook.
+    
+    Args:
+        sheet_name: Name of the new worksheet
+        session_id: Session ID from open_workbook (preferred)
+        filepath: Path to Excel file (legacy, deprecated)
+        
+    Note: Use session_id for better performance. filepath parameter is deprecated.
+    """
     try:
-        full_path = get_excel_path(filepath)
-        from xlwings_mcp.workbook import create_sheet as create_worksheet_impl
-        result = create_worksheet_impl(full_path, sheet_name)
-        return result["message"]
+        # Support both new (session_id) and old (filepath) API
+        if session_id:
+            # New API: use session
+            session = SESSION_MANAGER.get_session(session_id)
+            if not session:
+                return f"Error: Session {session_id} not found. Please open the workbook first using open_workbook()."
+            
+            with session.lock:
+                from xlwings_mcp.xlwings_impl.workbook_xlw import create_worksheet_xlw_with_wb
+                result = create_worksheet_xlw_with_wb(session.workbook, sheet_name)
+        elif filepath:
+            # Legacy API: backwards compatibility
+            logger.warning("Using deprecated filepath parameter. Please use session_id instead.")
+            full_path = get_excel_path(filepath)
+            from xlwings_mcp.workbook import create_sheet as create_worksheet_impl
+            result = create_worksheet_impl(full_path, sheet_name)
+        else:
+            return "Error: Either session_id or filepath must be provided"
+        
+        return result.get("message", "Worksheet created successfully") if "error" not in result else f"Error: {result['error']}"
+        
     except (ValidationError, WorkbookError) as e:
         return f"Error: {str(e)}"
     except Exception as e:
@@ -415,33 +586,72 @@ def create_worksheet(filepath: str, sheet_name: str) -> str:
 
 @mcp.tool()
 def create_chart(
-    filepath: str,
     sheet_name: str,
     data_range: str,
     chart_type: str,
     target_cell: str,
+    session_id: Optional[str] = None,
+    filepath: Optional[str] = None,
     title: str = "",
     x_axis: str = "",
     y_axis: str = ""
 ) -> str:
-    """Create chart in worksheet."""
-    try:
-        full_path = get_excel_path(filepath)
+    """
+    Create chart in worksheet.
+    
+    Args:
+        sheet_name: Name of worksheet
+        data_range: Data range for chart
+        chart_type: Type of chart
+        target_cell: Cell where chart will be placed
+        session_id: Session ID from open_workbook (preferred)
+        filepath: Path to Excel file (legacy, deprecated)
+        title: Chart title (optional)
+        x_axis: X-axis label (optional)
+        y_axis: Y-axis label (optional)
         
-        # xlwings 구현
-        logger.info("🔥 Using XLWINGS implementation for create_chart")
-        from xlwings_mcp.xlwings_impl.advanced_xlw import create_chart_xlw
-        result = create_chart_xlw(
-            filepath=full_path,
-            sheet_name=sheet_name,
-            data_range=data_range,
-            chart_type=chart_type,
-            target_cell=target_cell,
-            title=title,
-            x_axis=x_axis,
-            y_axis=y_axis
-        )
+    Note: Use session_id for better performance. filepath parameter is deprecated.
+    """
+    try:
+        # Support both new (session_id) and old (filepath) API
+        if session_id:
+            # New API: use session
+            session = SESSION_MANAGER.get_session(session_id)
+            if not session:
+                return f"Error: Session {session_id} not found. Please open the workbook first using open_workbook()."
+            
+            with session.lock:
+                from xlwings_mcp.xlwings_impl.advanced_xlw import create_chart_xlw_with_wb
+                result = create_chart_xlw_with_wb(
+                    workbook=session.workbook,
+                    sheet_name=sheet_name,
+                    data_range=data_range,
+                    chart_type=chart_type,
+                    target_cell=target_cell,
+                    title=title,
+                    x_axis=x_axis,
+                    y_axis=y_axis
+                )
+        elif filepath:
+            # Legacy API: backwards compatibility
+            logger.warning("Using deprecated filepath parameter. Please use session_id instead.")
+            full_path = get_excel_path(filepath)
+            from xlwings_mcp.xlwings_impl.advanced_xlw import create_chart_xlw
+            result = create_chart_xlw(
+                filepath=full_path,
+                sheet_name=sheet_name,
+                data_range=data_range,
+                chart_type=chart_type,
+                target_cell=target_cell,
+                title=title,
+                x_axis=x_axis,
+                y_axis=y_axis
+            )
+        else:
+            return "Error: Either session_id or filepath must be provided"
+        
         return result.get("message", "Chart created successfully") if "error" not in result else f"Error: {result['error']}"
+        
     except (ValidationError, ChartError) as e:
         return f"Error: {str(e)}"
     except Exception as e:
@@ -450,49 +660,77 @@ def create_chart(
 
 @mcp.tool()
 def create_pivot_table(
-    filepath: str,
     sheet_name: str,
     data_range: str,
     rows: List[str],
     values: List[str],
+    session_id: Optional[str] = None,
+    filepath: Optional[str] = None,
     columns: Optional[List[str]] = None,
     agg_func: str = "mean",
     target_sheet: Optional[str] = None,
     target_cell: Optional[str] = None,
     pivot_name: Optional[str] = None
 ) -> str:
-    """Create pivot table in worksheet.
+    """
+    Create pivot table in worksheet.
     
     Args:
-        filepath: Path to Excel file
         sheet_name: Name of worksheet containing source data
         data_range: Source data range (e.g., "A1:E100" or "Sheet2!A1:E100")
         rows: Field names for row labels
         values: Field names for values
+        session_id: Session ID from open_workbook (preferred)
+        filepath: Path to Excel file (legacy, deprecated)
         columns: Field names for column labels (optional)
         agg_func: Aggregation function (sum, count, average, max, min)
         target_sheet: Target sheet for pivot table (optional, auto-created if not exists)
         target_cell: Target cell for pivot table (optional, finds empty area if not provided)
         pivot_name: Custom name for pivot table (optional, auto-generated if not provided)
+        
+    Note: Use session_id for better performance. filepath parameter is deprecated.
     """
     try:
-        full_path = get_excel_path(filepath)
-        
-        # xlwings 구현
-        logger.info("🔥 Using XLWINGS implementation for create_pivot_table")
-        from xlwings_mcp.xlwings_impl.advanced_xlw import create_pivot_table_xlw
-        result = create_pivot_table_xlw(
-            filepath=full_path,
-            sheet_name=sheet_name,
-            data_range=data_range,
-            rows=rows,
-            values=values,
-            columns=columns,
-            agg_func=agg_func,
-            target_sheet=target_sheet,
-            target_cell=target_cell,
-            pivot_name=pivot_name
-        )
+        # Support both new (session_id) and old (filepath) API
+        if session_id:
+            # New API: use session
+            session = SESSION_MANAGER.get_session(session_id)
+            if not session:
+                return f"Error: Session {session_id} not found. Please open the workbook first using open_workbook()."
+            
+            with session.lock:
+                from xlwings_mcp.xlwings_impl.advanced_xlw import create_pivot_table_xlw_with_wb
+                result = create_pivot_table_xlw_with_wb(
+                    workbook=session.workbook,
+                    sheet_name=sheet_name,
+                    data_range=data_range,
+                    rows=rows,
+                    values=values,
+                    columns=columns,
+                    agg_func=agg_func,
+                    target_sheet=target_sheet,
+                    target_cell=target_cell,
+                    pivot_name=pivot_name
+                )
+        elif filepath:
+            # Legacy API: backwards compatibility
+            logger.warning("Using deprecated filepath parameter. Please use session_id instead.")
+            full_path = get_excel_path(filepath)
+            from xlwings_mcp.xlwings_impl.advanced_xlw import create_pivot_table_xlw
+            result = create_pivot_table_xlw(
+                filepath=full_path,
+                sheet_name=sheet_name,
+                data_range=data_range,
+                rows=rows,
+                values=values,
+                columns=columns,
+                agg_func=agg_func,
+                target_sheet=target_sheet,
+                target_cell=target_cell,
+                pivot_name=pivot_name
+            )
+        else:
+            return "Error: Either session_id or filepath must be provided"
         
         # Handle warnings in response
         if "warnings" in result and result["warnings"]:
@@ -500,6 +738,7 @@ def create_pivot_table(
             return f"{result.get('message', 'Pivot table created')} (Warnings: {warning_msg})"
         
         return result.get("message", "Pivot table created successfully") if "error" not in result else f"Error: {result['error']}"
+        
     except (ValidationError, PivotError) as e:
         return f"Error: {str(e)}"
     except Exception as e:
@@ -508,27 +747,60 @@ def create_pivot_table(
 
 @mcp.tool()
 def create_table(
-    filepath: str,
     sheet_name: str,
     data_range: str,
+    session_id: Optional[str] = None,
+    filepath: Optional[str] = None,
     table_name: Optional[str] = None,
     table_style: str = "TableStyleMedium9"
 ) -> str:
-    """Creates a native Excel table from a specified range of data."""
-    try:
-        full_path = get_excel_path(filepath)
+    """
+    Creates a native Excel table from a specified range of data.
+    
+    Args:
+        sheet_name: Name of worksheet
+        data_range: Range of data to create table from
+        session_id: Session ID from open_workbook (preferred)
+        filepath: Path to Excel file (legacy, deprecated)
+        table_name: Name for the table (optional)
+        table_style: Style for the table (optional)
         
-        # xlwings 구현
-        logger.info("🔥 Using XLWINGS implementation for create_table")
-        from xlwings_mcp.xlwings_impl.advanced_xlw import create_table_xlw
-        result = create_table_xlw(
-            filepath=full_path,
-            sheet_name=sheet_name,
-            data_range=data_range,
-            table_name=table_name,
-            table_style=table_style
-        )
+    Note: Use session_id for better performance. filepath parameter is deprecated.
+    """
+    try:
+        # Support both new (session_id) and old (filepath) API
+        if session_id:
+            # New API: use session
+            session = SESSION_MANAGER.get_session(session_id)
+            if not session:
+                return f"Error: Session {session_id} not found. Please open the workbook first using open_workbook()."
+            
+            with session.lock:
+                from xlwings_mcp.xlwings_impl.advanced_xlw import create_table_xlw_with_wb
+                result = create_table_xlw_with_wb(
+                    workbook=session.workbook,
+                    sheet_name=sheet_name,
+                    data_range=data_range,
+                    table_name=table_name,
+                    table_style=table_style
+                )
+        elif filepath:
+            # Legacy API: backwards compatibility
+            logger.warning("Using deprecated filepath parameter. Please use session_id instead.")
+            full_path = get_excel_path(filepath)
+            from xlwings_mcp.xlwings_impl.advanced_xlw import create_table_xlw
+            result = create_table_xlw(
+                filepath=full_path,
+                sheet_name=sheet_name,
+                data_range=data_range,
+                table_name=table_name,
+                table_style=table_style
+            )
+        else:
+            return "Error: Either session_id or filepath must be provided"
+        
         return result.get("message", "Table created successfully") if "error" not in result else f"Error: {result['error']}"
+        
     except DataError as e:
         return f"Error: {str(e)}"
     except Exception as e:
@@ -537,15 +809,43 @@ def create_table(
 
 @mcp.tool()
 def copy_worksheet(
-    filepath: str,
     source_sheet: str,
-    target_sheet: str
+    target_sheet: str,
+    session_id: Optional[str] = None,
+    filepath: Optional[str] = None
 ) -> str:
-    """Copy worksheet within workbook."""
+    """
+    Copy worksheet within workbook.
+    
+    Args:
+        source_sheet: Name of the source worksheet
+        target_sheet: Name of the target worksheet
+        session_id: Session ID from open_workbook (preferred)
+        filepath: Path to Excel file (legacy, deprecated)
+        
+    Note: Use session_id for better performance. filepath parameter is deprecated.
+    """
     try:
-        full_path = get_excel_path(filepath)
-        result = copy_sheet(full_path, source_sheet, target_sheet)
-        return result["message"]
+        # Support both new (session_id) and old (filepath) API
+        if session_id:
+            # New API: use session
+            session = SESSION_MANAGER.get_session(session_id)
+            if not session:
+                return f"Error: Session {session_id} not found. Please open the workbook first using open_workbook()."
+            
+            with session.lock:
+                from xlwings_mcp.xlwings_impl.workbook_xlw import copy_worksheet_xlw_with_wb
+                result = copy_worksheet_xlw_with_wb(session.workbook, source_sheet, target_sheet)
+        elif filepath:
+            # Legacy API: backwards compatibility
+            logger.warning("Using deprecated filepath parameter. Please use session_id instead.")
+            full_path = get_excel_path(filepath)
+            result = copy_sheet(full_path, source_sheet, target_sheet)
+        else:
+            return "Error: Either session_id or filepath must be provided"
+        
+        return result.get("message", "Worksheet copied successfully") if "error" not in result else f"Error: {result['error']}"
+        
     except (ValidationError, SheetError) as e:
         return f"Error: {str(e)}"
     except Exception as e:
@@ -554,14 +854,41 @@ def copy_worksheet(
 
 @mcp.tool()
 def delete_worksheet(
-    filepath: str,
-    sheet_name: str
+    sheet_name: str,
+    session_id: Optional[str] = None,
+    filepath: Optional[str] = None
 ) -> str:
-    """Delete worksheet from workbook."""
+    """
+    Delete worksheet from workbook.
+    
+    Args:
+        sheet_name: Name of the worksheet to delete
+        session_id: Session ID from open_workbook (preferred)
+        filepath: Path to Excel file (legacy, deprecated)
+        
+    Note: Use session_id for better performance. filepath parameter is deprecated.
+    """
     try:
-        full_path = get_excel_path(filepath)
-        result = delete_sheet(full_path, sheet_name)
-        return result["message"]
+        # Support both new (session_id) and old (filepath) API
+        if session_id:
+            # New API: use session
+            session = SESSION_MANAGER.get_session(session_id)
+            if not session:
+                return f"Error: Session {session_id} not found. Please open the workbook first using open_workbook()."
+            
+            with session.lock:
+                from xlwings_mcp.xlwings_impl.workbook_xlw import delete_worksheet_xlw_with_wb
+                result = delete_worksheet_xlw_with_wb(session.workbook, sheet_name)
+        elif filepath:
+            # Legacy API: backwards compatibility
+            logger.warning("Using deprecated filepath parameter. Please use session_id instead.")
+            full_path = get_excel_path(filepath)
+            result = delete_sheet(full_path, sheet_name)
+        else:
+            return "Error: Either session_id or filepath must be provided"
+        
+        return result.get("message", "Worksheet deleted successfully") if "error" not in result else f"Error: {result['error']}"
+        
     except (ValidationError, SheetError) as e:
         return f"Error: {str(e)}"
     except Exception as e:
@@ -570,15 +897,43 @@ def delete_worksheet(
 
 @mcp.tool()
 def rename_worksheet(
-    filepath: str,
     old_name: str,
-    new_name: str
+    new_name: str,
+    session_id: Optional[str] = None,
+    filepath: Optional[str] = None
 ) -> str:
-    """Rename worksheet in workbook."""
+    """
+    Rename worksheet in workbook.
+    
+    Args:
+        old_name: Current name of the worksheet
+        new_name: New name for the worksheet
+        session_id: Session ID from open_workbook (preferred)
+        filepath: Path to Excel file (legacy, deprecated)
+        
+    Note: Use session_id for better performance. filepath parameter is deprecated.
+    """
     try:
-        full_path = get_excel_path(filepath)
-        result = rename_sheet(full_path, old_name, new_name)
-        return result["message"]
+        # Support both new (session_id) and old (filepath) API
+        if session_id:
+            # New API: use session
+            session = SESSION_MANAGER.get_session(session_id)
+            if not session:
+                return f"Error: Session {session_id} not found. Please open the workbook first using open_workbook()."
+            
+            with session.lock:
+                from xlwings_mcp.xlwings_impl.workbook_xlw import rename_worksheet_xlw_with_wb
+                result = rename_worksheet_xlw_with_wb(session.workbook, old_name, new_name)
+        elif filepath:
+            # Legacy API: backwards compatibility
+            logger.warning("Using deprecated filepath parameter. Please use session_id instead.")
+            full_path = get_excel_path(filepath)
+            result = rename_sheet(full_path, old_name, new_name)
+        else:
+            return "Error: Either session_id or filepath must be provided"
+        
+        return result.get("message", "Worksheet renamed successfully") if "error" not in result else f"Error: {result['error']}"
+        
     except (ValidationError, SheetError) as e:
         return f"Error: {str(e)}"
     except Exception as e:
@@ -587,33 +942,90 @@ def rename_worksheet(
 
 @mcp.tool()
 def get_workbook_metadata(
-    filepath: str,
+    session_id: Optional[str] = None,
+    filepath: Optional[str] = None,
     include_ranges: bool = False
 ) -> str:
-    """Get metadata about workbook including sheets, ranges, etc."""
-    try:
-        full_path = get_excel_path(filepath)
+    """
+    Get metadata about workbook including sheets, ranges, etc.
+    
+    Args:
+        session_id: Session ID from open_workbook (preferred)
+        filepath: Path to Excel file (legacy, deprecated)
+        include_ranges: Whether to include range information
         
-        # xlwings 구현
-        from xlwings_mcp.xlwings_impl.workbook_xlw import get_workbook_metadata_xlw
-        result = get_workbook_metadata_xlw(full_path, include_ranges=include_ranges)
+    Note: Use session_id for better performance. filepath parameter is deprecated.
+    """
+    try:
+        # Support both new (session_id) and old (filepath) API
+        if session_id:
+            # New API: use session
+            session = SESSION_MANAGER.get_session(session_id)
+            if not session:
+                return f"Error: Session {session_id} not found. Please open the workbook first using open_workbook()."
+            
+            with session.lock:
+                from xlwings_mcp.xlwings_impl.workbook_xlw import get_workbook_metadata_xlw_with_wb
+                result = get_workbook_metadata_xlw_with_wb(session.workbook, include_ranges=include_ranges)
+        elif filepath:
+            # Legacy API: backwards compatibility
+            logger.warning("Using deprecated filepath parameter. Please use session_id instead.")
+            full_path = get_excel_path(filepath)
+            from xlwings_mcp.xlwings_impl.workbook_xlw import get_workbook_metadata_xlw
+            result = get_workbook_metadata_xlw(full_path, include_ranges=include_ranges)
+        else:
+            return "Error: Either session_id or filepath must be provided"
+        
         if "error" in result:
             return f"Error: {result['error']}"
         import json
         return json.dumps(result, indent=2, default=str, ensure_ascii=False)
             
-    except WorkbookError as e:
+    except (ValidationError, WorkbookError) as e:
         return f"Error: {str(e)}"
     except Exception as e:
         logger.error(f"Error getting workbook metadata: {e}")
         raise
 
 @mcp.tool()
-def merge_cells(filepath: str, sheet_name: str, start_cell: str, end_cell: str) -> str:
-    """Merge a range of cells."""
+def merge_cells(
+    sheet_name: str,
+    start_cell: str,
+    end_cell: str,
+    session_id: Optional[str] = None,
+    filepath: Optional[str] = None
+) -> str:
+    """
+    Merge a range of cells.
+    
+    Args:
+        sheet_name: Name of worksheet
+        start_cell: Starting cell
+        end_cell: Ending cell
+        session_id: Session ID from open_workbook (preferred)
+        filepath: Path to Excel file (legacy, deprecated)
+        
+    Note: Use session_id for better performance. filepath parameter is deprecated.
+    """
     try:
-        full_path = get_excel_path(filepath)
-        result = merge_range(full_path, sheet_name, start_cell, end_cell)
+        # Support both new (session_id) and old (filepath) API
+        if session_id:
+            # New API: use session
+            session = SESSION_MANAGER.get_session(session_id)
+            if not session:
+                return f"Error: Session {session_id} not found. Please open the workbook first using open_workbook()."
+            
+            with session.lock:
+                from xlwings_mcp.sheet import merge_range_with_wb
+                result = merge_range_with_wb(session.workbook, sheet_name, start_cell, end_cell)
+        elif filepath:
+            # Legacy API: backwards compatibility
+            logger.warning("Using deprecated filepath parameter. Please use session_id instead.")
+            full_path = get_excel_path(filepath)
+            result = merge_range(full_path, sheet_name, start_cell, end_cell)
+        else:
+            return "Error: Either session_id or filepath must be provided"
+        
         return result["message"]
     except (ValidationError, SheetError) as e:
         return f"Error: {str(e)}"
@@ -622,11 +1034,44 @@ def merge_cells(filepath: str, sheet_name: str, start_cell: str, end_cell: str) 
         raise
 
 @mcp.tool()
-def unmerge_cells(filepath: str, sheet_name: str, start_cell: str, end_cell: str) -> str:
-    """Unmerge a range of cells."""
+def unmerge_cells(
+    sheet_name: str,
+    start_cell: str,
+    end_cell: str,
+    session_id: Optional[str] = None,
+    filepath: Optional[str] = None
+) -> str:
+    """
+    Unmerge a range of cells.
+    
+    Args:
+        sheet_name: Name of worksheet
+        start_cell: Starting cell
+        end_cell: Ending cell
+        session_id: Session ID from open_workbook (preferred)
+        filepath: Path to Excel file (legacy, deprecated)
+        
+    Note: Use session_id for better performance. filepath parameter is deprecated.
+    """
     try:
-        full_path = get_excel_path(filepath)
-        result = unmerge_range(full_path, sheet_name, start_cell, end_cell)
+        # Support both new (session_id) and old (filepath) API
+        if session_id:
+            # New API: use session
+            session = SESSION_MANAGER.get_session(session_id)
+            if not session:
+                return f"Error: Session {session_id} not found. Please open the workbook first using open_workbook()."
+            
+            with session.lock:
+                from xlwings_mcp.sheet import unmerge_range_with_wb
+                result = unmerge_range_with_wb(session.workbook, sheet_name, start_cell, end_cell)
+        elif filepath:
+            # Legacy API: backwards compatibility
+            logger.warning("Using deprecated filepath parameter. Please use session_id instead.")
+            full_path = get_excel_path(filepath)
+            result = unmerge_range(full_path, sheet_name, start_cell, end_cell)
+        else:
+            return "Error: Either session_id or filepath must be provided"
+        
         return result["message"]
     except (ValidationError, SheetError) as e:
         return f"Error: {str(e)}"
@@ -635,11 +1080,40 @@ def unmerge_cells(filepath: str, sheet_name: str, start_cell: str, end_cell: str
         raise
 
 @mcp.tool()
-def get_merged_cells(filepath: str, sheet_name: str) -> str:
-    """Get merged cells in a worksheet."""
+def get_merged_cells(
+    sheet_name: str,
+    session_id: Optional[str] = None,
+    filepath: Optional[str] = None
+) -> str:
+    """
+    Get merged cells in a worksheet.
+    
+    Args:
+        sheet_name: Name of worksheet
+        session_id: Session ID from open_workbook (preferred)
+        filepath: Path to Excel file (legacy, deprecated)
+        
+    Note: Use session_id for better performance. filepath parameter is deprecated.
+    """
     try:
-        full_path = get_excel_path(filepath)
-        return str(get_merged_ranges(full_path, sheet_name))
+        # Support both new (session_id) and old (filepath) API
+        if session_id:
+            # New API: use session
+            session = SESSION_MANAGER.get_session(session_id)
+            if not session:
+                return f"Error: Session {session_id} not found. Please open the workbook first using open_workbook()."
+            
+            with session.lock:
+                from xlwings_mcp.sheet import get_merged_ranges_with_wb
+                return str(get_merged_ranges_with_wb(session.workbook, sheet_name))
+        elif filepath:
+            # Legacy API: backwards compatibility
+            logger.warning("Using deprecated filepath parameter. Please use session_id instead.")
+            full_path = get_excel_path(filepath)
+            return str(get_merged_ranges(full_path, sheet_name))
+        else:
+            return "Error: Either session_id or filepath must be provided"
+        
     except (ValidationError, SheetError) as e:
         return f"Error: {str(e)}"
     except Exception as e:
@@ -648,25 +1122,62 @@ def get_merged_cells(filepath: str, sheet_name: str) -> str:
 
 @mcp.tool()
 def copy_range(
-    filepath: str,
     sheet_name: str,
     source_start: str,
     source_end: str,
     target_start: str,
+    session_id: Optional[str] = None,
+    filepath: Optional[str] = None,
     target_sheet: Optional[str] = None
 ) -> str:
-    """Copy a range of cells to another location."""
+    """
+    Copy a range of cells to another location.
+    
+    Args:
+        sheet_name: Name of source worksheet
+        source_start: Starting cell of source range
+        source_end: Ending cell of source range
+        target_start: Starting cell of target range
+        session_id: Session ID from open_workbook (preferred)
+        filepath: Path to Excel file (legacy, deprecated)
+        target_sheet: Target worksheet (optional, uses source sheet if not provided)
+        
+    Note: Use session_id for better performance. filepath parameter is deprecated.
+    """
     try:
-        full_path = get_excel_path(filepath)
-        from xlwings_mcp.sheet import copy_range_operation
-        result = copy_range_operation(
-            full_path,
-            sheet_name,
-            source_start,
-            source_end,
-            target_start,
-            target_sheet or sheet_name  # Use source sheet if target_sheet is None
-        )
+        # Support both new (session_id) and old (filepath) API
+        if session_id:
+            # New API: use session
+            session = SESSION_MANAGER.get_session(session_id)
+            if not session:
+                return f"Error: Session {session_id} not found. Please open the workbook first using open_workbook()."
+            
+            with session.lock:
+                from xlwings_mcp.sheet import copy_range_operation_with_wb
+                result = copy_range_operation_with_wb(
+                    session.workbook,
+                    sheet_name,
+                    source_start,
+                    source_end,
+                    target_start,
+                    target_sheet or sheet_name  # Use source sheet if target_sheet is None
+                )
+        elif filepath:
+            # Legacy API: backwards compatibility
+            logger.warning("Using deprecated filepath parameter. Please use session_id instead.")
+            full_path = get_excel_path(filepath)
+            from xlwings_mcp.sheet import copy_range_operation
+            result = copy_range_operation(
+                full_path,
+                sheet_name,
+                source_start,
+                source_end,
+                target_start,
+                target_sheet or sheet_name  # Use source sheet if target_sheet is None
+            )
+        else:
+            return "Error: Either session_id or filepath must be provided"
+        
         return result["message"]
     except (ValidationError, SheetError) as e:
         return f"Error: {str(e)}"
@@ -676,23 +1187,58 @@ def copy_range(
 
 @mcp.tool()
 def delete_range(
-    filepath: str,
     sheet_name: str,
     start_cell: str,
     end_cell: str,
+    session_id: Optional[str] = None,
+    filepath: Optional[str] = None,
     shift_direction: str = "up"
 ) -> str:
-    """Delete a range of cells and shift remaining cells."""
+    """
+    Delete a range of cells and shift remaining cells.
+    
+    Args:
+        sheet_name: Name of worksheet
+        start_cell: Starting cell
+        end_cell: Ending cell
+        session_id: Session ID from open_workbook (preferred)
+        filepath: Path to Excel file (legacy, deprecated)
+        shift_direction: Direction to shift cells ("up" or "left")
+        
+    Note: Use session_id for better performance. filepath parameter is deprecated.
+    """
     try:
-        full_path = get_excel_path(filepath)
-        from xlwings_mcp.sheet import delete_range_operation
-        result = delete_range_operation(
-            full_path,
-            sheet_name,
-            start_cell,
-            end_cell,
-            shift_direction
-        )
+        # Support both new (session_id) and old (filepath) API
+        if session_id:
+            # New API: use session
+            session = SESSION_MANAGER.get_session(session_id)
+            if not session:
+                return f"Error: Session {session_id} not found. Please open the workbook first using open_workbook()."
+            
+            with session.lock:
+                from xlwings_mcp.sheet import delete_range_operation_with_wb
+                result = delete_range_operation_with_wb(
+                    session.workbook,
+                    sheet_name,
+                    start_cell,
+                    end_cell,
+                    shift_direction
+                )
+        elif filepath:
+            # Legacy API: backwards compatibility
+            logger.warning("Using deprecated filepath parameter. Please use session_id instead.")
+            full_path = get_excel_path(filepath)
+            from xlwings_mcp.sheet import delete_range_operation
+            result = delete_range_operation(
+                full_path,
+                sheet_name,
+                start_cell,
+                end_cell,
+                shift_direction
+            )
+        else:
+            return "Error: Either session_id or filepath must be provided"
+        
         return result["message"]
     except (ValidationError, SheetError) as e:
         return f"Error: {str(e)}"
@@ -702,21 +1248,47 @@ def delete_range(
 
 @mcp.tool()
 def validate_excel_range(
-    filepath: str,
     sheet_name: str,
     start_cell: str,
+    session_id: Optional[str] = None,
+    filepath: Optional[str] = None,
     end_cell: Optional[str] = None
 ) -> str:
-    """Validate if a range exists and is properly formatted."""
-    try:
-        full_path = get_excel_path(filepath)
+    """
+    Validate if a range exists and is properly formatted.
+    
+    Args:
+        sheet_name: Name of worksheet
+        start_cell: Starting cell
+        session_id: Session ID from open_workbook (preferred)
+        filepath: Path to Excel file (legacy, deprecated)
+        end_cell: Ending cell (optional)
         
-        # xlwings 구현
-        from xlwings_mcp.xlwings_impl.validation_xlw import validate_excel_range_xlw
-        result = validate_excel_range_xlw(full_path, sheet_name, start_cell, end_cell)
+    Note: Use session_id for better performance. filepath parameter is deprecated.
+    """
+    try:
+        # Support both new (session_id) and old (filepath) API
+        if session_id:
+            # New API: use session
+            session = SESSION_MANAGER.get_session(session_id)
+            if not session:
+                return f"Error: Session {session_id} not found. Please open the workbook first using open_workbook()."
+            
+            with session.lock:
+                from xlwings_mcp.xlwings_impl.validation_xlw import validate_excel_range_xlw_with_wb
+                result = validate_excel_range_xlw_with_wb(session.workbook, sheet_name, start_cell, end_cell)
+        elif filepath:
+            # Legacy API: backwards compatibility
+            logger.warning("Using deprecated filepath parameter. Please use session_id instead.")
+            full_path = get_excel_path(filepath)
+            from xlwings_mcp.xlwings_impl.validation_xlw import validate_excel_range_xlw
+            result = validate_excel_range_xlw(full_path, sheet_name, start_cell, end_cell)
+        else:
+            return "Error: Either session_id or filepath must be provided"
+        
         return result.get("message", "Range validation completed") if "error" not in result else f"Error: {result['error']}"
             
-    except ValidationError as e:
+    except (ValidationError, DataError) as e:
         return f"Error: {str(e)}"
     except Exception as e:
         logger.error(f"Error validating range: {e}")
@@ -724,8 +1296,9 @@ def validate_excel_range(
 
 @mcp.tool()
 def get_data_validation_info(
-    filepath: str,
-    sheet_name: str
+    sheet_name: str,
+    session_id: Optional[str] = None,
+    filepath: Optional[str] = None
 ) -> str:
     """
     Get all data validation rules in a worksheet.
@@ -734,46 +1307,90 @@ def get_data_validation_info(
     and what types of validation are applied.
     
     Args:
-        filepath: Path to Excel file
         sheet_name: Name of worksheet
+        session_id: Session ID from open_workbook (preferred)
+        filepath: Path to Excel file (legacy, deprecated)
+        
+    Note: Use session_id for better performance. filepath parameter is deprecated.
         
     Returns:
         JSON string containing all validation rules in the worksheet
     """
     try:
-        full_path = get_excel_path(filepath)
+        # Support both new (session_id) and old (filepath) API
+        if session_id:
+            # New API: use session
+            session = SESSION_MANAGER.get_session(session_id)
+            if not session:
+                return f"Error: Session {session_id} not found. Please open the workbook first using open_workbook()."
+            
+            with session.lock:
+                from xlwings_mcp.xlwings_impl.validation_xlw import get_data_validation_info_xlw_with_wb
+                result = get_data_validation_info_xlw_with_wb(session.workbook, sheet_name)
+        elif filepath:
+            # Legacy API: backwards compatibility
+            logger.warning("Using deprecated filepath parameter. Please use session_id instead.")
+            full_path = get_excel_path(filepath)
+            from xlwings_mcp.xlwings_impl.validation_xlw import get_data_validation_info_xlw
+            result = get_data_validation_info_xlw(full_path, sheet_name)
+        else:
+            return "Error: Either session_id or filepath must be provided"
         
-        # xlwings 구현
-        logger.info("🔥 Using XLWINGS implementation for get_data_validation_info")
-        from xlwings_mcp.xlwings_impl.validation_xlw import get_data_validation_info_xlw
-        result = get_data_validation_info_xlw(full_path, sheet_name)
         if "error" in result:
             return f"Error: {result['error']}"
         import json
         return json.dumps(result, indent=2, default=str)
         
+    except (ValidationError, DataError) as e:
+        return f"Error: {str(e)}"
     except Exception as e:
         logger.error(f"Error getting validation info: {e}")
         raise
 
 @mcp.tool()
 def insert_rows(
-    filepath: str,
     sheet_name: str,
     start_row: int,
+    session_id: Optional[str] = None,
+    filepath: Optional[str] = None,
     count: int = 1
 ) -> str:
-    """Insert one or more rows starting at the specified row."""
-    try:
-        full_path = get_excel_path(filepath)
+    """
+    Insert one or more rows starting at the specified row.
+    
+    Args:
+        sheet_name: Name of worksheet
+        start_row: Row number to start inserting at
+        session_id: Session ID from open_workbook (preferred)
+        filepath: Path to Excel file (legacy, deprecated)
+        count: Number of rows to insert
         
-        # xlwings 구현
-        logger.info("🔥 Using XLWINGS implementation for insert_rows")
-        from xlwings_mcp.xlwings_impl.rows_cols_xlw import insert_rows_xlw
-        result = insert_rows_xlw(full_path, sheet_name, start_row, count)
+    Note: Use session_id for better performance. filepath parameter is deprecated.
+    """
+    try:
+        # Support both new (session_id) and old (filepath) API
+        if session_id:
+            # New API: use session
+            session = SESSION_MANAGER.get_session(session_id)
+            if not session:
+                return f"Error: Session {session_id} not found. Please open the workbook first using open_workbook()."
+            
+            with session.lock:
+                from xlwings_mcp.xlwings_impl.rows_cols_xlw import insert_rows_xlw_with_wb
+                result = insert_rows_xlw_with_wb(session.workbook, sheet_name, start_row, count)
+        elif filepath:
+            # Legacy API: backwards compatibility
+            logger.warning("Using deprecated filepath parameter. Please use session_id instead.")
+            full_path = get_excel_path(filepath)
+            from xlwings_mcp.xlwings_impl.rows_cols_xlw import insert_rows_xlw
+            result = insert_rows_xlw(full_path, sheet_name, start_row, count)
+        else:
+            return "Error: Either session_id or filepath must be provided"
+        
         if "error" in result:
             return f"Error: {result['error']}"
         return result["message"]
+        
     except (ValidationError, SheetError) as e:
         return f"Error: {str(e)}"
     except Exception as e:
@@ -782,22 +1399,48 @@ def insert_rows(
 
 @mcp.tool()
 def insert_columns(
-    filepath: str,
     sheet_name: str,
     start_col: int,
+    session_id: Optional[str] = None,
+    filepath: Optional[str] = None,
     count: int = 1
 ) -> str:
-    """Insert one or more columns starting at the specified column."""
-    try:
-        full_path = get_excel_path(filepath)
+    """
+    Insert one or more columns starting at the specified column.
+    
+    Args:
+        sheet_name: Name of worksheet
+        start_col: Column number to start inserting at
+        session_id: Session ID from open_workbook (preferred)
+        filepath: Path to Excel file (legacy, deprecated)
+        count: Number of columns to insert
         
-        # xlwings 구현
-        logger.info("🔥 Using XLWINGS implementation for insert_columns")
-        from xlwings_mcp.xlwings_impl.rows_cols_xlw import insert_columns_xlw
-        result = insert_columns_xlw(full_path, sheet_name, start_col, count)
+    Note: Use session_id for better performance. filepath parameter is deprecated.
+    """
+    try:
+        # Support both new (session_id) and old (filepath) API
+        if session_id:
+            # New API: use session
+            session = SESSION_MANAGER.get_session(session_id)
+            if not session:
+                return f"Error: Session {session_id} not found. Please open the workbook first using open_workbook()."
+            
+            with session.lock:
+                from xlwings_mcp.xlwings_impl.rows_cols_xlw import insert_columns_xlw_with_wb
+                result = insert_columns_xlw_with_wb(session.workbook, sheet_name, start_col, count)
+        elif filepath:
+            # Legacy API: backwards compatibility
+            logger.warning("Using deprecated filepath parameter. Please use session_id instead.")
+            full_path = get_excel_path(filepath)
+            from xlwings_mcp.xlwings_impl.rows_cols_xlw import insert_columns_xlw
+            result = insert_columns_xlw(full_path, sheet_name, start_col, count)
+        else:
+            return "Error: Either session_id or filepath must be provided"
+        
         if "error" in result:
             return f"Error: {result['error']}"
         return result["message"]
+        
     except (ValidationError, SheetError) as e:
         return f"Error: {str(e)}"
     except Exception as e:
@@ -806,22 +1449,48 @@ def insert_columns(
 
 @mcp.tool()
 def delete_sheet_rows(
-    filepath: str,
     sheet_name: str,
     start_row: int,
+    session_id: Optional[str] = None,
+    filepath: Optional[str] = None,
     count: int = 1
 ) -> str:
-    """Delete one or more rows starting at the specified row."""
-    try:
-        full_path = get_excel_path(filepath)
+    """
+    Delete one or more rows starting at the specified row.
+    
+    Args:
+        sheet_name: Name of worksheet
+        start_row: Row number to start deleting from
+        session_id: Session ID from open_workbook (preferred)
+        filepath: Path to Excel file (legacy, deprecated)
+        count: Number of rows to delete
         
-        # xlwings 구현
-        logger.info("🔥 Using XLWINGS implementation for delete_sheet_rows")
-        from xlwings_mcp.xlwings_impl.rows_cols_xlw import delete_sheet_rows_xlw
-        result = delete_sheet_rows_xlw(full_path, sheet_name, start_row, count)
+    Note: Use session_id for better performance. filepath parameter is deprecated.
+    """
+    try:
+        # Support both new (session_id) and old (filepath) API
+        if session_id:
+            # New API: use session
+            session = SESSION_MANAGER.get_session(session_id)
+            if not session:
+                return f"Error: Session {session_id} not found. Please open the workbook first using open_workbook()."
+            
+            with session.lock:
+                from xlwings_mcp.xlwings_impl.rows_cols_xlw import delete_sheet_rows_xlw_with_wb
+                result = delete_sheet_rows_xlw_with_wb(session.workbook, sheet_name, start_row, count)
+        elif filepath:
+            # Legacy API: backwards compatibility
+            logger.warning("Using deprecated filepath parameter. Please use session_id instead.")
+            full_path = get_excel_path(filepath)
+            from xlwings_mcp.xlwings_impl.rows_cols_xlw import delete_sheet_rows_xlw
+            result = delete_sheet_rows_xlw(full_path, sheet_name, start_row, count)
+        else:
+            return "Error: Either session_id or filepath must be provided"
+        
         if "error" in result:
             return f"Error: {result['error']}"
         return result["message"]
+        
     except (ValidationError, SheetError) as e:
         return f"Error: {str(e)}"
     except Exception as e:
@@ -830,22 +1499,48 @@ def delete_sheet_rows(
 
 @mcp.tool()
 def delete_sheet_columns(
-    filepath: str,
     sheet_name: str,
     start_col: int,
+    session_id: Optional[str] = None,
+    filepath: Optional[str] = None,
     count: int = 1
 ) -> str:
-    """Delete one or more columns starting at the specified column."""
-    try:
-        full_path = get_excel_path(filepath)
+    """
+    Delete one or more columns starting at the specified column.
+    
+    Args:
+        sheet_name: Name of worksheet
+        start_col: Column number to start deleting from
+        session_id: Session ID from open_workbook (preferred)
+        filepath: Path to Excel file (legacy, deprecated)
+        count: Number of columns to delete
         
-        # xlwings 구현
-        logger.info("🔥 Using XLWINGS implementation for delete_sheet_columns")
-        from xlwings_mcp.xlwings_impl.rows_cols_xlw import delete_sheet_columns_xlw
-        result = delete_sheet_columns_xlw(full_path, sheet_name, start_col, count)
+    Note: Use session_id for better performance. filepath parameter is deprecated.
+    """
+    try:
+        # Support both new (session_id) and old (filepath) API
+        if session_id:
+            # New API: use session
+            session = SESSION_MANAGER.get_session(session_id)
+            if not session:
+                return f"Error: Session {session_id} not found. Please open the workbook first using open_workbook()."
+            
+            with session.lock:
+                from xlwings_mcp.xlwings_impl.rows_cols_xlw import delete_sheet_columns_xlw_with_wb
+                result = delete_sheet_columns_xlw_with_wb(session.workbook, sheet_name, start_col, count)
+        elif filepath:
+            # Legacy API: backwards compatibility
+            logger.warning("Using deprecated filepath parameter. Please use session_id instead.")
+            full_path = get_excel_path(filepath)
+            from xlwings_mcp.xlwings_impl.rows_cols_xlw import delete_sheet_columns_xlw
+            result = delete_sheet_columns_xlw(full_path, sheet_name, start_col, count)
+        else:
+            return "Error: Either session_id or filepath must be provided"
+        
         if "error" in result:
             return f"Error: {result['error']}"
         return result["message"]
+        
     except (ValidationError, SheetError) as e:
         return f"Error: {str(e)}"
     except Exception as e:
