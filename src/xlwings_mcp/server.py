@@ -29,6 +29,10 @@ from xlwings_mcp.sheet import (
     get_merged_ranges,
 )
 
+# Import session management
+from xlwings_mcp.session import SESSION_MANAGER
+from xlwings_mcp.force_close import force_close_workbook_by_path
+
 # Get project root directory path for log file path.
 # When using the stdio transmission method,
 # relative paths may cause log files to fail to create
@@ -84,24 +88,155 @@ def get_excel_path(filename: str) -> str:
     # In SSE mode, if it's a relative path, resolve it based on EXCEL_FILES_PATH
     return os.path.join(EXCEL_FILES_PATH, filename)
 
+# ============================================================================
+# SESSION MANAGEMENT TOOLS (NEW)
+# ============================================================================
+
 @mcp.tool()
-def apply_formula(
+def open_workbook(
     filepath: str,
-    sheet_name: str,
-    cell: str,
-    formula: str,
-) -> str:
+    visible: bool = False,
+    read_only: bool = False
+) -> Dict[str, Any]:
     """
-    Apply Excel formula to cell.
-    Excel formula will write to cell with verification.
+    Open an Excel workbook and create a session.
+    
+    Args:
+        filepath: Path to Excel file
+        visible: Whether to show Excel window (default: False)
+        read_only: Whether to open in read-only mode (default: False)
+        
+    Returns:
+        Dictionary with session_id, filepath, visible, read_only, and sheets
     """
     try:
         full_path = get_excel_path(filepath)
+        session_id = SESSION_MANAGER.open_workbook(full_path, visible, read_only)
         
-        # xlwings 구현
-        logger.info("🔥 Using XLWINGS implementation for apply_formula")
-        from xlwings_mcp.xlwings_impl.calculations_xlw import apply_formula_xlw
-        result = apply_formula_xlw(full_path, sheet_name, cell, formula)
+        # Get session info
+        session = SESSION_MANAGER.get_session(session_id)
+        if not session:
+            raise WorkbookError(f"Failed to create session for {filepath}")
+        
+        return {
+            "session_id": session_id,
+            "filepath": session.filepath,
+            "visible": session.visible,
+            "read_only": session.read_only,
+            "sheets": [sheet.name for sheet in session.workbook.sheets]
+        }
+        
+    except Exception as e:
+        logger.error(f"Error opening workbook: {e}")
+        raise WorkbookError(f"Failed to open workbook: {str(e)}")
+
+@mcp.tool()
+def close_workbook(
+    session_id: str,
+    save: bool = True
+) -> str:
+    """
+    Close a workbook session.
+    
+    Args:
+        session_id: Session ID from open_workbook
+        save: Whether to save changes (default: True)
+        
+    Returns:
+        Success message
+    """
+    try:
+        success = SESSION_MANAGER.close_workbook(session_id, save)
+        if not success:
+            raise WorkbookError(f"Session {session_id} not found")
+        
+        return f"Workbook session {session_id} closed successfully"
+        
+    except Exception as e:
+        logger.error(f"Error closing workbook: {e}")
+        raise WorkbookError(f"Failed to close workbook: {str(e)}")
+
+@mcp.tool()
+def list_workbooks() -> List[Dict[str, Any]]:
+    """
+    List all open workbook sessions.
+    
+    Returns:
+        List of session information dictionaries
+    """
+    try:
+        return SESSION_MANAGER.list_sessions()
+    except Exception as e:
+        logger.error(f"Error listing workbooks: {e}")
+        raise WorkbookError(f"Failed to list workbooks: {str(e)}")
+
+@mcp.tool()
+def force_close_workbook_by_path_tool(
+    filepath: str
+) -> Dict[str, Any]:
+    """
+    Force close a specific workbook by file path (without saving).
+    
+    Args:
+        filepath: Path to the workbook to force close
+        
+    Returns:
+        Dictionary with 'closed' (bool) and 'message' (str)
+    """
+    try:
+        full_path = get_excel_path(filepath)
+        return force_close_workbook_by_path(full_path)
+    except Exception as e:
+        logger.error(f"Error force closing workbook: {e}")
+        return {
+            "closed": False,
+            "message": f"Failed to force close workbook: {str(e)}"
+        }
+
+# ============================================================================
+# EXISTING TOOLS (TO BE UPDATED WITH SESSION SUPPORT)
+# ============================================================================
+
+@mcp.tool()
+def apply_formula(
+    session_id: Optional[str] = None,
+    filepath: Optional[str] = None,
+    sheet_name: str = "",
+    cell: str = "",
+    formula: str = "",
+) -> str:
+    """
+    Apply Excel formula to cell.
+    
+    Args:
+        session_id: Session ID from open_workbook (preferred)
+        filepath: Path to Excel file (legacy, deprecated)
+        sheet_name: Name of worksheet
+        cell: Cell address (e.g., "A1")
+        formula: Excel formula to apply
+        
+    Note: Use session_id for better performance. filepath parameter is deprecated.
+    """
+    try:
+        # Support both new (session_id) and old (filepath) API
+        if session_id:
+            # New API: use session
+            session = SESSION_MANAGER.get_session(session_id)
+            if not session:
+                return f"Error: Session {session_id} not found. Please open the workbook first using open_workbook()."
+            
+            with session.lock:
+                from xlwings_mcp.xlwings_impl.calculations_xlw import apply_formula_xlw_with_wb
+                result = apply_formula_xlw_with_wb(session.workbook, sheet_name, cell, formula)
+        elif filepath:
+            # Legacy API: backwards compatibility
+            logger.warning("Using deprecated filepath parameter. Please use session_id instead.")
+            full_path = get_excel_path(filepath)
+            from xlwings_mcp.xlwings_impl.calculations_xlw import apply_formula_xlw
+            result = apply_formula_xlw(full_path, sheet_name, cell, formula)
+        else:
+            return "Error: Either session_id or filepath must be provided"
+        
         return result.get("message", "Formula applied successfully") if "error" not in result else f"Error: {result['error']}"
             
     except (ValidationError, CalculationError) as e:

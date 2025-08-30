@@ -11,6 +11,71 @@ import xlwings as xw
 
 logger = logging.getLogger(__name__)
 
+def apply_formula_xlw_with_wb(
+    wb,
+    sheet_name: str,
+    cell: str,
+    formula: str
+) -> Dict[str, Any]:
+    """Apply formula using existing workbook object (session-based).
+    
+    Args:
+        wb: Workbook object from session
+        sheet_name: Sheet name
+        cell: Target cell (e.g., A1)
+        formula: Formula to apply
+        
+    Returns:
+        Dictionary with result and calculated value
+    """
+    try:
+        # Check sheet exists
+        if sheet_name not in [s.name for s in wb.sheets]:
+            return {"error": f"Sheet '{sheet_name}' not found"}
+        
+        ws = wb.sheets[sheet_name]
+        
+        # Normalize formula
+        if not formula.startswith('='):
+            formula = f'={formula}'
+        
+        # Get cell
+        cell_range = ws.range(cell)
+        
+        # Apply formula
+        try:
+            cell_range.formula = formula
+        except Exception as e:
+            return {
+                "error": f"Formula error in cell {cell}: {str(e)}",
+                "formula": formula,
+                "cell": cell
+            }
+        
+        # Get calculated result
+        try:
+            calculated_value = cell_range.value
+            display_value = cell_range.api.Text
+        except Exception as e:
+            logger.warning(f"Failed to read calculated value: {e}")
+            calculated_value = None
+            display_value = None
+        
+        # Save workbook
+        wb.save()
+        
+        return {
+            "message": f"Formula applied to {cell}",
+            "cell": cell,
+            "formula": formula,
+            "calculated_value": calculated_value,
+            "display_value": display_value
+        }
+        
+    except Exception as e:
+        logger.error(f"Failed to apply formula: {e}")
+        return {"error": f"Failed to apply formula: {str(e)}"}
+
 def apply_formula_xlw(
     filepath: str,
     sheet_name: str,

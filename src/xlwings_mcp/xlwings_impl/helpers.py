@@ -14,6 +14,47 @@ class ExcelHelper:
     """Helper class for Excel operations with better error handling and abstraction."""
     
     @staticmethod
+    def calc_state_context(wb):
+        """
+        Context manager for optimizing calculation state.
+        Disables automatic calculation, screen updating, and events during operations.
+        
+        Usage:
+            with ExcelHelper.calc_state_context(wb):
+                # Perform heavy operations
+        """
+        class CalcStateContext:
+            def __init__(self, workbook):
+                self.app = workbook.app
+                self.original_calculation = None
+                self.original_screen_updating = None
+                self.original_enable_events = None
+                
+            def __enter__(self):
+                # Save original states
+                self.original_calculation = self.app.calculation
+                self.original_screen_updating = self.app.screen_updating
+                self.original_enable_events = self.app.enable_events
+                
+                # Set optimal states for heavy operations
+                self.app.calculation = 'manual'
+                self.app.screen_updating = False
+                self.app.enable_events = False
+                
+                return self
+                
+            def __exit__(self, exc_type, exc_val, exc_tb):
+                # Restore original states
+                if self.original_calculation:
+                    self.app.calculation = self.original_calculation
+                if self.original_screen_updating is not None:
+                    self.app.screen_updating = self.original_screen_updating
+                if self.original_enable_events is not None:
+                    self.app.enable_events = self.original_enable_events
+                    
+        return CalcStateContext(wb)
+    
+    @staticmethod
     def find_empty_cell(sheet: xw.Sheet, start_row: int = 1, start_col: int = 1) -> str:
         """
         Find the next empty cell in a worksheet.
