@@ -24,9 +24,6 @@ from xlwings_mcp.sheet import (
     copy_sheet,
     delete_sheet,
     rename_sheet,
-    merge_range,
-    unmerge_range,
-    get_merged_ranges,
 )
 
 # Import session management
@@ -274,13 +271,13 @@ def validate_formula_syntax(
                 return f"Error: Session {session_id} not found. Please open the workbook first using open_workbook()."
             
             with session.lock:
-                from xlwings_mcp.xlwings_impl.formatting_xlw import validate_formula_syntax_xlw_with_wb
+                from xlwings_mcp.xlwings_impl.calculations_xlw import validate_formula_syntax_xlw_with_wb
                 result = validate_formula_syntax_xlw_with_wb(session.workbook, sheet_name, cell, formula)
         elif filepath:
             # Legacy API: backwards compatibility
             logger.warning("Using deprecated filepath parameter. Please use session_id instead.")
             full_path = get_excel_path(filepath)
-            from xlwings_mcp.xlwings_impl.formatting_xlw import validate_formula_syntax_xlw
+            from xlwings_mcp.xlwings_impl.calculations_xlw import validate_formula_syntax_xlw
             result = validate_formula_syntax_xlw(full_path, sheet_name, cell, formula)
         else:
             return "Error: Either session_id or filepath must be provided"
@@ -351,7 +348,7 @@ def format_range(
             with session.lock:
                 from xlwings_mcp.xlwings_impl.formatting_xlw import format_range_xlw_with_wb
                 result = format_range_xlw_with_wb(
-                    workbook=session.workbook,
+                    session.workbook,
                     sheet_name=sheet_name,
                     start_cell=start_cell,
                     end_cell=end_cell,
@@ -623,7 +620,7 @@ def create_chart(
             with session.lock:
                 from xlwings_mcp.xlwings_impl.advanced_xlw import create_chart_xlw_with_wb
                 result = create_chart_xlw_with_wb(
-                    workbook=session.workbook,
+                    session.workbook,
                     sheet_name=sheet_name,
                     data_range=data_range,
                     chart_type=chart_type,
@@ -701,7 +698,7 @@ def create_pivot_table(
             with session.lock:
                 from xlwings_mcp.xlwings_impl.advanced_xlw import create_pivot_table_xlw_with_wb
                 result = create_pivot_table_xlw_with_wb(
-                    workbook=session.workbook,
+                    session.workbook,
                     sheet_name=sheet_name,
                     data_range=data_range,
                     rows=rows,
@@ -778,7 +775,7 @@ def create_table(
             with session.lock:
                 from xlwings_mcp.xlwings_impl.advanced_xlw import create_table_xlw_with_wb
                 result = create_table_xlw_with_wb(
-                    workbook=session.workbook,
+                    session.workbook,
                     sheet_name=sheet_name,
                     data_range=data_range,
                     table_name=table_name,
@@ -1016,17 +1013,18 @@ def merge_cells(
                 return f"Error: Session {session_id} not found. Please open the workbook first using open_workbook()."
             
             with session.lock:
-                from xlwings_mcp.sheet import merge_range_with_wb
-                result = merge_range_with_wb(session.workbook, sheet_name, start_cell, end_cell)
+                from xlwings_mcp.xlwings_impl.range_xlw import merge_cells_xlw_with_wb
+                result = merge_cells_xlw_with_wb(session.workbook, sheet_name, start_cell, end_cell)
         elif filepath:
             # Legacy API: backwards compatibility
             logger.warning("Using deprecated filepath parameter. Please use session_id instead.")
             full_path = get_excel_path(filepath)
-            result = merge_range(full_path, sheet_name, start_cell, end_cell)
+            from xlwings_mcp.xlwings_impl.range_xlw import merge_cells_xlw
+            result = merge_cells_xlw(full_path, sheet_name, start_cell, end_cell)
         else:
             return "Error: Either session_id or filepath must be provided"
         
-        return result["message"]
+        return result.get("message", "Cells merged successfully") if "error" not in result else f"Error: {result['error']}"
     except (ValidationError, SheetError) as e:
         return f"Error: {str(e)}"
     except Exception as e:
@@ -1062,17 +1060,18 @@ def unmerge_cells(
                 return f"Error: Session {session_id} not found. Please open the workbook first using open_workbook()."
             
             with session.lock:
-                from xlwings_mcp.sheet import unmerge_range_with_wb
-                result = unmerge_range_with_wb(session.workbook, sheet_name, start_cell, end_cell)
+                from xlwings_mcp.xlwings_impl.range_xlw import unmerge_cells_xlw_with_wb
+                result = unmerge_cells_xlw_with_wb(session.workbook, sheet_name, start_cell, end_cell)
         elif filepath:
             # Legacy API: backwards compatibility
             logger.warning("Using deprecated filepath parameter. Please use session_id instead.")
             full_path = get_excel_path(filepath)
-            result = unmerge_range(full_path, sheet_name, start_cell, end_cell)
+            from xlwings_mcp.xlwings_impl.range_xlw import unmerge_cells_xlw
+            result = unmerge_cells_xlw(full_path, sheet_name, start_cell, end_cell)
         else:
             return "Error: Either session_id or filepath must be provided"
         
-        return result["message"]
+        return result.get("message", "Cells unmerged successfully") if "error" not in result else f"Error: {result['error']}"
     except (ValidationError, SheetError) as e:
         return f"Error: {str(e)}"
     except Exception as e:
@@ -1104,13 +1103,22 @@ def get_merged_cells(
                 return f"Error: Session {session_id} not found. Please open the workbook first using open_workbook()."
             
             with session.lock:
-                from xlwings_mcp.sheet import get_merged_ranges_with_wb
-                return str(get_merged_ranges_with_wb(session.workbook, sheet_name))
+                from xlwings_mcp.xlwings_impl.range_xlw import get_merged_cells_xlw_with_wb
+                result = get_merged_cells_xlw_with_wb(session.workbook, sheet_name)
+                if "error" in result:
+                    return f"Error: {result['error']}"
+                import json
+                return json.dumps(result, indent=2, default=str)
         elif filepath:
             # Legacy API: backwards compatibility
             logger.warning("Using deprecated filepath parameter. Please use session_id instead.")
             full_path = get_excel_path(filepath)
-            return str(get_merged_ranges(full_path, sheet_name))
+            from xlwings_mcp.xlwings_impl.range_xlw import get_merged_cells_xlw
+            result = get_merged_cells_xlw(full_path, sheet_name)
+            if "error" in result:
+                return f"Error: {result['error']}"
+            import json
+            return json.dumps(result, indent=2, default=str)
         else:
             return "Error: Either session_id or filepath must be provided"
         
@@ -1153,8 +1161,8 @@ def copy_range(
                 return f"Error: Session {session_id} not found. Please open the workbook first using open_workbook()."
             
             with session.lock:
-                from xlwings_mcp.sheet import copy_range_operation_with_wb
-                result = copy_range_operation_with_wb(
+                from xlwings_mcp.xlwings_impl.range_xlw import copy_range_xlw_with_wb
+                result = copy_range_xlw_with_wb(
                     session.workbook,
                     sheet_name,
                     source_start,
@@ -1166,8 +1174,8 @@ def copy_range(
             # Legacy API: backwards compatibility
             logger.warning("Using deprecated filepath parameter. Please use session_id instead.")
             full_path = get_excel_path(filepath)
-            from xlwings_mcp.sheet import copy_range_operation
-            result = copy_range_operation(
+            from xlwings_mcp.xlwings_impl.range_xlw import copy_range_xlw
+            result = copy_range_xlw(
                 full_path,
                 sheet_name,
                 source_start,
@@ -1178,7 +1186,7 @@ def copy_range(
         else:
             return "Error: Either session_id or filepath must be provided"
         
-        return result["message"]
+        return result.get("message", "Range copied successfully") if "error" not in result else f"Error: {result['error']}"
     except (ValidationError, SheetError) as e:
         return f"Error: {str(e)}"
     except Exception as e:
@@ -1216,8 +1224,8 @@ def delete_range(
                 return f"Error: Session {session_id} not found. Please open the workbook first using open_workbook()."
             
             with session.lock:
-                from xlwings_mcp.sheet import delete_range_operation_with_wb
-                result = delete_range_operation_with_wb(
+                from xlwings_mcp.xlwings_impl.range_xlw import delete_range_xlw_with_wb
+                result = delete_range_xlw_with_wb(
                     session.workbook,
                     sheet_name,
                     start_cell,
@@ -1228,8 +1236,8 @@ def delete_range(
             # Legacy API: backwards compatibility
             logger.warning("Using deprecated filepath parameter. Please use session_id instead.")
             full_path = get_excel_path(filepath)
-            from xlwings_mcp.sheet import delete_range_operation
-            result = delete_range_operation(
+            from xlwings_mcp.xlwings_impl.range_xlw import delete_range_xlw
+            result = delete_range_xlw(
                 full_path,
                 sheet_name,
                 start_cell,
@@ -1239,7 +1247,7 @@ def delete_range(
         else:
             return "Error: Either session_id or filepath must be provided"
         
-        return result["message"]
+        return result.get("message", "Range deleted successfully") if "error" not in result else f"Error: {result['error']}"
     except (ValidationError, SheetError) as e:
         return f"Error: {str(e)}"
     except Exception as e:
