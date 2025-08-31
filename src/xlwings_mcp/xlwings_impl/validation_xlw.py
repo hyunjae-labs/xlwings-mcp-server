@@ -464,3 +464,80 @@ def get_data_validation_info_xlw_with_wb(
     except Exception as e:
         logger.error(f"Error getting validation info: {e}")
         return {"error": str(e)}
+
+
+def validate_excel_range_xlw_with_wb(
+    wb,
+    sheet_name: str,
+    start_cell: str,
+    end_cell: str = None
+) -> Dict[str, Any]:
+    """
+    Validate if a range exists and is properly formatted using xlwings with workbook object.
+    
+    Args:
+        wb: xlwings Workbook object
+        sheet_name: Name of worksheet
+        start_cell: Starting cell address
+        end_cell: Ending cell address (optional)
+        
+    Returns:
+        Dict containing validation result and range information
+    """
+    try:
+        logger.info(f"🔍 Validating range {start_cell}:{end_cell or start_cell} in {sheet_name}")
+        
+        # Check if sheet exists
+        sheet_names = [s.name for s in wb.sheets]
+        if sheet_name not in sheet_names:
+            return {"error": f"Sheet '{sheet_name}' not found", "valid": False}
+        
+        sheet = wb.sheets[sheet_name]
+        
+        # Validate the range
+        try:
+            if end_cell:
+                range_obj = sheet.range(f"{start_cell}:{end_cell}")
+            else:
+                range_obj = sheet.range(start_cell)
+            
+            # Get range information
+            range_info = {
+                "message": f"Range validation successful: {range_obj.address}",
+                "valid": True,
+                "range": range_obj.address,
+                "start_cell": start_cell,
+                "end_cell": end_cell,
+                "rows": range_obj.rows.count,
+                "columns": range_obj.columns.count,
+                "size": range_obj.rows.count * range_obj.columns.count,
+                "sheet": sheet_name,
+                "has_data": bool(range_obj.value is not None)
+            }
+            
+            # Check if range has any data
+            if range_obj.value:
+                if isinstance(range_obj.value, (list, tuple)):
+                    non_empty_count = sum(1 for row in range_obj.value 
+                                        if row and any(cell for cell in (row if isinstance(row, (list, tuple)) else [row]) if cell is not None))
+                else:
+                    non_empty_count = 1 if range_obj.value is not None else 0
+                range_info["non_empty_cells"] = non_empty_count
+            else:
+                range_info["non_empty_cells"] = 0
+            
+            logger.info(f"✅ Range validation successful: {range_obj.address}")
+            return range_info
+            
+        except Exception as range_error:
+            return {
+                "error": f"Invalid range: {range_error}",
+                "valid": False,
+                "start_cell": start_cell,
+                "end_cell": end_cell,
+                "sheet": sheet_name
+            }
+        
+    except Exception as e:
+        logger.error(f"Error validating range: {e}")
+        return {"error": str(e), "valid": False}

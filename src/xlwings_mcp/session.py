@@ -8,7 +8,7 @@ import uuid
 import time
 import threading
 import logging
-from typing import Dict, Optional, Any
+from typing import Dict, Optional, Any, Tuple
 from pathlib import Path
 from datetime import datetime
 
@@ -116,6 +116,11 @@ class ExcelSessionManager:
             self._sessions: Dict[str, ExcelSession] = {}
             self._sessions_lock = threading.RLock()
             
+            # Auto-recovery support: Store expired session info for recovery
+            self._expired_sessions: Dict[str, Dict[str, Any]] = {}
+            self._session_redirects: Dict[str, str] = {}
+            self._max_expired_history = int(os.getenv('EXCEL_MCP_MAX_EXPIRED_HISTORY', '100'))
+            
             # Configuration from environment
             self._ttl = int(os.getenv('EXCEL_MCP_SESSION_TTL', '600'))  # 10 minutes default
             self._max_sessions = int(os.getenv('EXCEL_MCP_MAX_OPEN', '8'))  # 8 sessions max
@@ -124,7 +129,111 @@ class ExcelSessionManager:
             self._cleanup_thread = threading.Thread(target=self._cleanup_worker, daemon=True)
             self._cleanup_thread.start()
             
-            logger.info(f"ExcelSessionManager initialized: TTL={self._ttl}s, MAX={self._max_sessions}")
+            logger.info(f"ExcelSessionManager initialized: TTL={self._ttl}s, MAX={self._max_sessions}, Auto-Recovery=ON")
+
+    def _extract_session_info(self, session: ExcelSession) -> Dict[str, Any]:
+        """Extract essential info from session for recovery purposes"""
+        try:
+            file_mtime = os.path.getmtime(session.filepath) if os.path.exists(session.filepath) else None
+        except (OSError, IOError):
+            file_mtime = None
+        
+        return {
+            'filepath': session.filepath,
+            'visible': session.visible,
+            'read_only': session.read_only,
+            'created_at': session.created_at,
+            'last_accessed': session.last_accessed,
+            'file_mtime': file_mtime,
+            'expired_at': time.time()
+        }
+    
+    def _validate_file_state(self, session_info: Dict[str, Any]) -> Tuple[bool, Optional[str]]:
+        """Validate if file is still in recoverable state"""
+        filepath = session_info['filepath']
+        
+        # Check if file exists
+        if not os.path.exists(filepath):
+            return False, f"FILE_NOT_FOUND: '{filepath}' no longer exists"
+        
+        # Check if file is accessible
+        try:
+            if not session_info['read_only'] and is_file_locked(filepath):
+                return False, f"FILE_LOCKED: '{filepath}' is currently locked by another process"
+        except Exception as e:
+            return False, f"FILE_ACCESS_ERROR: Cannot access '{filepath}': {e}"
+        
+        # Check if file was modified since session expired (warning, not error)
+        stored_mtime = session_info.get('file_mtime')
+        if stored_mtime:
+            try:
+                current_mtime = os.path.getmtime(filepath)
+                if current_mtime > stored_mtime:
+                    logger.warning(f"FILE_MODIFIED: '{filepath}' was modified since session expired. "
+                                 f"Data may be inconsistent (last known: {datetime.fromtimestamp(stored_mtime)}, "
+                                 f"current: {datetime.fromtimestamp(current_mtime)})")
+            except (OSError, IOError):
+                pass  # Ignore mtime check errors
+        
+        return True, None
+    
+    def _auto_recover_session(self, session_id: str) -> Optional[ExcelSession]:
+        """Attempt to recover an expired session"""
+        session_info = self._expired_sessions.get(session_id)
+        if not session_info:
+            return None
+        
+        logger.info(f"AUTO_RECOVERY: Attempting to recover session '{session_id}' for '{session_info['filepath']}'")
+        
+        # Validate file state before recovery
+        is_valid, error_msg = self._validate_file_state(session_info)
+        if not is_valid:
+            logger.warning(f"AUTO_RECOVERY_FAILED: {error_msg}")
+            return None
+        
+        try:
+            # Create new session with same parameters
+            new_session_id = self.open_workbook(
+                filepath=session_info['filepath'],
+                visible=session_info['visible'],
+                read_only=session_info['read_only']
+            )
+            
+            # Create redirect mapping from old to new session
+            self._session_redirects[session_id] = new_session_id
+            
+            # Get the new session
+            new_session = self._sessions.get(new_session_id)
+            if new_session:
+                logger.info(f"AUTO_RECOVERY_SUCCESS: Session '{session_id}' recovered as '{new_session_id}' "
+                           f"for '{session_info['filepath']}'")
+                return new_session
+            
+        except Exception as e:
+            logger.error(f"AUTO_RECOVERY_ERROR: Failed to recover session '{session_id}': {e}")
+        
+        return None
+
+    def _manage_expired_history(self):
+        """Manage expired session history to prevent memory bloat"""
+        if len(self._expired_sessions) > self._max_expired_history:
+            # Remove oldest expired sessions (FIFO)
+            expired_items = list(self._expired_sessions.items())
+            expired_items.sort(key=lambda x: x[1]['expired_at'])
+            
+            # Remove excess items
+            excess_count = len(self._expired_sessions) - self._max_expired_history
+            for i in range(excess_count):
+                session_id, session_info = expired_items[i]
+                del self._expired_sessions[session_id]
+                
+                # Also remove any redirect mappings
+                redirect_keys_to_remove = [k for k, v in self._session_redirects.items() if k == session_id]
+                for key in redirect_keys_to_remove:
+                    del self._session_redirects[key]
+            
+            if excess_count > 0:
+                logger.debug(f"MEMORY_CLEANUP: Removed {excess_count} old expired sessions from history")
     
     def open_workbook(self, filepath: str, visible: bool = False, 
                      read_only: bool = False) -> str:
@@ -186,15 +295,22 @@ class ExcelSessionManager:
             raise
     
     def get_session(self, session_id: str) -> Optional[ExcelSession]:
-        """Get a session by ID"""
+        """Get a session by ID with automatic recovery support"""
         with self._sessions_lock:
-            session = self._sessions.get(session_id)
+            # Check for redirect first (if session was recovered)
+            actual_session_id = self._session_redirects.get(session_id, session_id)
+            
+            session = self._sessions.get(actual_session_id)
             if session:
                 # Check if session is expired
                 if hasattr(session, 'last_accessed'):
                     time_since_access = time.time() - session.last_accessed
                     if time_since_access > self._ttl:
-                        logger.warning(f"SESSION_TIMEOUT: Session '{session_id}' expired (last accessed {time_since_access:.0f}s ago, TTL={self._ttl}s)")
+                        logger.warning(f"SESSION_TIMEOUT: Session '{actual_session_id}' expired (last accessed {time_since_access:.0f}s ago, TTL={self._ttl}s)")
+                        
+                        # Store session info for potential recovery before cleanup
+                        session_info = self._extract_session_info(session)
+                        
                         # Clean up expired session
                         try:
                             if session.workbook:
@@ -203,26 +319,57 @@ class ExcelSessionManager:
                                 session.app.quit()
                         except:
                             pass
-                        del self._sessions[session_id]
+                        
+                        # Move to expired sessions for potential recovery
+                        self._expired_sessions[session_id] = session_info
+                        self._manage_expired_history()
+                        
+                        # Remove from active sessions
+                        del self._sessions[actual_session_id]
+                        
+                        # Remove redirect if it exists
+                        if session_id in self._session_redirects:
+                            del self._session_redirects[session_id]
+                        
+                        # Attempt automatic recovery
+                        logger.info(f"AUTO_RECOVERY: Session '{session_id}' expired, attempting automatic recovery...")
+                        recovered_session = self._auto_recover_session(session_id)
+                        if recovered_session:
+                            recovered_session.touch()
+                            return recovered_session
+                        
                         return None
                 
                 session.touch()
                 logger.debug(f"Session {session_id} accessed")
+                return session
             else:
-                logger.warning(f"SESSION_NOT_FOUND: Session '{session_id}' not found. It may have expired or been closed.")
-            return session
+                # Session not found in active sessions, try auto-recovery
+                if session_id in self._expired_sessions:
+                    logger.info(f"AUTO_RECOVERY: Session '{session_id}' not active, attempting recovery...")
+                    recovered_session = self._auto_recover_session(session_id)
+                    if recovered_session:
+                        recovered_session.touch()
+                        return recovered_session
+                
+                logger.warning(f"SESSION_NOT_FOUND: Session '{session_id}' not found and cannot be recovered. It may have been permanently closed.")
+            
+            return None
     
     def close_workbook(self, session_id: str, save: bool = True) -> bool:
         """Close a workbook and remove session"""
         with self._sessions_lock:
-            session = self._sessions.get(session_id)
+            # Handle redirect mapping if exists
+            actual_session_id = self._session_redirects.get(session_id, session_id)
+            
+            session = self._sessions.get(actual_session_id)
             if not session:
                 logger.warning(f"Cannot close: session {session_id} not found")
                 return False
             
             try:
                 with session.lock:
-                    logger.debug(f"Closing session {session_id}")
+                    logger.debug(f"Closing session {session_id} (actual: {actual_session_id})")
                     
                     # Save and close workbook
                     if session.workbook:
@@ -235,15 +382,36 @@ class ExcelSessionManager:
                         session.app.quit()
                     
                     # Remove from sessions
-                    del self._sessions[session_id]
-                    logger.info(f"Session {session_id} closed (remaining sessions: {len(self._sessions)})")
+                    del self._sessions[actual_session_id]
+                    
+                    # Clean up auto-recovery related data
+                    if session_id in self._expired_sessions:
+                        del self._expired_sessions[session_id]
+                    
+                    # Clean up redirect mappings
+                    redirect_keys_to_remove = []
+                    for k, v in self._session_redirects.items():
+                        if k == session_id or v == actual_session_id:
+                            redirect_keys_to_remove.append(k)
+                    
+                    for key in redirect_keys_to_remove:
+                        del self._session_redirects[key]
+                    
+                    logger.info(f"Session {session_id} closed permanently (remaining sessions: {len(self._sessions)})")
                     return True
                     
             except Exception as e:
                 logger.error(f"Error closing session {session_id}: {e}")
                 # Force remove from sessions even on error
-                if session_id in self._sessions:
-                    del self._sessions[session_id]
+                if actual_session_id in self._sessions:
+                    del self._sessions[actual_session_id]
+                    
+                # Clean up recovery data on error too
+                if session_id in self._expired_sessions:
+                    del self._expired_sessions[session_id]
+                if session_id in self._session_redirects:
+                    del self._session_redirects[session_id]
+                    
                 return False
     
     def list_sessions(self) -> list:
@@ -277,7 +445,7 @@ class ExcelSessionManager:
         self.close_workbook(lru_session.id, save=True)
     
     def _cleanup_worker(self):
-        """Background thread to clean up expired sessions"""
+        """Background thread to clean up expired sessions while preserving recovery info"""
         while True:
             try:
                 time.sleep(30)  # Check every 30 seconds
@@ -288,15 +456,44 @@ class ExcelSessionManager:
                 with self._sessions_lock:
                     for session_id, session in self._sessions.items():
                         if current_time - session.last_accessed > self._ttl:
-                            expired_sessions.append(session_id)
+                            expired_sessions.append((session_id, session))
                 
-                # Close expired sessions
-                for session_id in expired_sessions:
-                    logger.info(f"Closing expired session {session_id} (TTL={self._ttl}s)")
+                # Process expired sessions - move to history instead of permanent deletion
+                for session_id, session in expired_sessions:
+                    logger.info(f"TTL_CLEANUP: Moving expired session '{session_id}' to recovery history (TTL={self._ttl}s)")
                     try:
-                        self.close_workbook(session_id, save=True)
+                        with self._sessions_lock:
+                            # Extract session info for recovery before cleanup
+                            session_info = self._extract_session_info(session)
+                            
+                            # Clean up Excel resources
+                            try:
+                                if session.workbook:
+                                    session.workbook.close()
+                                if session.app:
+                                    session.app.quit()
+                            except Exception as cleanup_error:
+                                logger.warning(f"Error cleaning up Excel resources for session {session_id}: {cleanup_error}")
+                            
+                            # Move to expired sessions for potential recovery
+                            self._expired_sessions[session_id] = session_info
+                            self._manage_expired_history()
+                            
+                            # Remove from active sessions
+                            if session_id in self._sessions:
+                                del self._sessions[session_id]
+                            
+                            logger.debug(f"TTL_CLEANUP: Session '{session_id}' moved to recovery history (active: {len(self._sessions)}, history: {len(self._expired_sessions)})")
+                            
                     except Exception as e:
-                        logger.error(f"Error closing expired session {session_id}: {e}")
+                        logger.error(f"Error processing expired session {session_id}: {e}")
+                        # Force cleanup if regular cleanup fails
+                        try:
+                            with self._sessions_lock:
+                                if session_id in self._sessions:
+                                    del self._sessions[session_id]
+                        except:
+                            pass
                         
             except Exception as e:
                 logger.error(f"Error in cleanup worker: {e}")
