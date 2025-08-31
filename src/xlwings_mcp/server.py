@@ -58,6 +58,17 @@ logging.basicConfig(
 logger = logging.getLogger("excel-mcp")
 logger.info("🚀 Excel MCP Server starting - xlwings 모드 활성화")
 
+# Error message templates for consistent error reporting
+ERROR_TEMPLATES = {
+    'SESSION_NOT_FOUND': "SESSION_NOT_FOUND: Session '{session_id}' not found. It may have expired after {ttl} minutes of inactivity. Use open_workbook() to create a new session.",
+    'SESSION_TIMEOUT': "SESSION_TIMEOUT: Session '{session_id}' expired at {time}. Create new session with open_workbook()",
+    'FILE_LOCKED': "FILE_ACCESS_ERROR: '{filepath}' is locked by another process. Use force_close_workbook_by_path() to force close it first.",
+    'FILE_NOT_FOUND': "FILE_NOT_FOUND: '{filepath}' does not exist. Check the path or create a new workbook with create_workbook().",
+    'SHEET_NOT_FOUND': "SHEET_NOT_FOUND: Sheet '{sheet_name}' not found in workbook. Available sheets: {sheets}",
+    'INVALID_RANGE': "INVALID_RANGE: Range '{range}' is not valid. Use format like 'A1' or 'A1:B10'.",
+    'PARAMETER_MISSING': "PARAMETER_MISSING: Either {param1} or {param2} must be provided.",
+}
+
 # Initialize FastMCP server
 mcp = FastMCP(
     "excel-mcp",
@@ -220,7 +231,10 @@ def apply_formula(
             # New API: use session
             session = SESSION_MANAGER.get_session(session_id)
             if not session:
-                return f"Error: Session {session_id} not found. Please open the workbook first using open_workbook()."
+                return ERROR_TEMPLATES['SESSION_NOT_FOUND'].format(
+                    session_id=session_id, 
+                    ttl=10  # Default TTL is 10 minutes (600 seconds)
+                )
             
             with session.lock:
                 from xlwings_mcp.xlwings_impl.calculations_xlw import apply_formula_xlw_with_wb
@@ -232,7 +246,10 @@ def apply_formula(
             from xlwings_mcp.xlwings_impl.calculations_xlw import apply_formula_xlw
             result = apply_formula_xlw(full_path, sheet_name, cell, formula)
         else:
-            return "Error: Either session_id or filepath must be provided"
+            return ERROR_TEMPLATES['PARAMETER_MISSING'].format(
+                param1='session_id',
+                param2='filepath'
+            )
         
         return result.get("message", "Formula applied successfully") if "error" not in result else f"Error: {result['error']}"
             
@@ -268,7 +285,10 @@ def validate_formula_syntax(
             # New API: use session
             session = SESSION_MANAGER.get_session(session_id)
             if not session:
-                return f"Error: Session {session_id} not found. Please open the workbook first using open_workbook()."
+                return ERROR_TEMPLATES['SESSION_NOT_FOUND'].format(
+                    session_id=session_id, 
+                    ttl=10  # Default TTL is 10 minutes (600 seconds)
+                )
             
             with session.lock:
                 from xlwings_mcp.xlwings_impl.calculations_xlw import validate_formula_syntax_xlw_with_wb
@@ -280,7 +300,10 @@ def validate_formula_syntax(
             from xlwings_mcp.xlwings_impl.calculations_xlw import validate_formula_syntax_xlw
             result = validate_formula_syntax_xlw(full_path, sheet_name, cell, formula)
         else:
-            return "Error: Either session_id or filepath must be provided"
+            return ERROR_TEMPLATES['PARAMETER_MISSING'].format(
+                param1='session_id',
+                param2='filepath'
+            )
         
         return result.get("message", "Formula validation completed") if "error" not in result else f"Error: {result['error']}"
     except (ValidationError, CalculationError) as e:
@@ -343,7 +366,10 @@ def format_range(
             # New API: use session
             session = SESSION_MANAGER.get_session(session_id)
             if not session:
-                return f"Error: Session {session_id} not found. Please open the workbook first using open_workbook()."
+                return ERROR_TEMPLATES['SESSION_NOT_FOUND'].format(
+                    session_id=session_id, 
+                    ttl=10  # Default TTL is 10 minutes (600 seconds)
+                )
             
             with session.lock:
                 from xlwings_mcp.xlwings_impl.formatting_xlw import format_range_xlw_with_wb
@@ -389,7 +415,10 @@ def format_range(
                 merge_cells=merge_cells
             )
         else:
-            return "Error: Either session_id or filepath must be provided"
+            return ERROR_TEMPLATES['PARAMETER_MISSING'].format(
+                param1='session_id',
+                param2='filepath'
+            )
         
         return result.get("message", "Range formatted successfully") if "error" not in result else f"Error: {result['error']}"
     except (ValidationError, FormattingError) as e:
@@ -426,7 +455,10 @@ def read_data_from_excel(
             # New API: use session
             session = SESSION_MANAGER.get_session(session_id)
             if not session:
-                return f"Error: Session {session_id} not found. Please open the workbook first using open_workbook()."
+                return ERROR_TEMPLATES['SESSION_NOT_FOUND'].format(
+                    session_id=session_id, 
+                    ttl=10  # Default TTL is 10 minutes (600 seconds)
+                )
             
             with session.lock:
                 from xlwings_mcp.xlwings_impl.data_xlw import read_data_from_excel_xlw_with_wb
@@ -438,7 +470,10 @@ def read_data_from_excel(
             from xlwings_mcp.xlwings_impl.data_xlw import read_data_from_excel_xlw
             return read_data_from_excel_xlw(full_path, sheet_name, start_cell, end_cell, preview_only)
         else:
-            return "Error: Either session_id or filepath must be provided"
+            return ERROR_TEMPLATES['PARAMETER_MISSING'].format(
+                param1='session_id',
+                param2='filepath'
+            )
         
     except (ValidationError, DataError) as e:
         return f"Error: {str(e)}"
@@ -473,7 +508,10 @@ def write_data_to_excel(
             # New API: use session
             session = SESSION_MANAGER.get_session(session_id)
             if not session:
-                return f"Error: Session {session_id} not found. Please open the workbook first using open_workbook()."
+                return ERROR_TEMPLATES['SESSION_NOT_FOUND'].format(
+                    session_id=session_id, 
+                    ttl=10  # Default TTL is 10 minutes (600 seconds)
+                )
             
             with session.lock:
                 from xlwings_mcp.xlwings_impl.data_xlw import write_data_to_excel_xlw_with_wb
@@ -485,7 +523,10 @@ def write_data_to_excel(
             from xlwings_mcp.xlwings_impl.data_xlw import write_data_to_excel_xlw
             result = write_data_to_excel_xlw(full_path, sheet_name, data, start_cell)
         else:
-            return "Error: Either session_id or filepath must be provided"
+            return ERROR_TEMPLATES['PARAMETER_MISSING'].format(
+                param1='session_id',
+                param2='filepath'
+            )
         
         return result.get("message", "Data written successfully") if "error" not in result else f"Error: {result['error']}"
             
@@ -529,7 +570,10 @@ def create_workbook(
             create_workbook_impl(full_path)
             return f"Created workbook at {full_path}"
         else:
-            return "Error: Either session_id or filepath must be provided"
+            return ERROR_TEMPLATES['PARAMETER_MISSING'].format(
+                param1='session_id',
+                param2='filepath'
+            )
         
     except WorkbookError as e:
         return f"Error: {str(e)}"
@@ -559,7 +603,10 @@ def create_worksheet(
             # New API: use session
             session = SESSION_MANAGER.get_session(session_id)
             if not session:
-                return f"Error: Session {session_id} not found. Please open the workbook first using open_workbook()."
+                return ERROR_TEMPLATES['SESSION_NOT_FOUND'].format(
+                    session_id=session_id, 
+                    ttl=10  # Default TTL is 10 minutes (600 seconds)
+                )
             
             with session.lock:
                 from xlwings_mcp.xlwings_impl.workbook_xlw import create_worksheet_xlw_with_wb
@@ -571,7 +618,10 @@ def create_worksheet(
             from xlwings_mcp.workbook import create_sheet as create_worksheet_impl
             result = create_worksheet_impl(full_path, sheet_name)
         else:
-            return "Error: Either session_id or filepath must be provided"
+            return ERROR_TEMPLATES['PARAMETER_MISSING'].format(
+                param1='session_id',
+                param2='filepath'
+            )
         
         return result.get("message", "Worksheet created successfully") if "error" not in result else f"Error: {result['error']}"
         
@@ -615,7 +665,10 @@ def create_chart(
             # New API: use session
             session = SESSION_MANAGER.get_session(session_id)
             if not session:
-                return f"Error: Session {session_id} not found. Please open the workbook first using open_workbook()."
+                return ERROR_TEMPLATES['SESSION_NOT_FOUND'].format(
+                    session_id=session_id, 
+                    ttl=10  # Default TTL is 10 minutes (600 seconds)
+                )
             
             with session.lock:
                 from xlwings_mcp.xlwings_impl.advanced_xlw import create_chart_xlw_with_wb
@@ -645,7 +698,10 @@ def create_chart(
                 y_axis=y_axis
             )
         else:
-            return "Error: Either session_id or filepath must be provided"
+            return ERROR_TEMPLATES['PARAMETER_MISSING'].format(
+                param1='session_id',
+                param2='filepath'
+            )
         
         return result.get("message", "Chart created successfully") if "error" not in result else f"Error: {result['error']}"
         
@@ -693,7 +749,10 @@ def create_pivot_table(
             # New API: use session
             session = SESSION_MANAGER.get_session(session_id)
             if not session:
-                return f"Error: Session {session_id} not found. Please open the workbook first using open_workbook()."
+                return ERROR_TEMPLATES['SESSION_NOT_FOUND'].format(
+                    session_id=session_id, 
+                    ttl=10  # Default TTL is 10 minutes (600 seconds)
+                )
             
             with session.lock:
                 from xlwings_mcp.xlwings_impl.advanced_xlw import create_pivot_table_xlw_with_wb
@@ -727,7 +786,10 @@ def create_pivot_table(
                 pivot_name=pivot_name
             )
         else:
-            return "Error: Either session_id or filepath must be provided"
+            return ERROR_TEMPLATES['PARAMETER_MISSING'].format(
+                param1='session_id',
+                param2='filepath'
+            )
         
         # Handle warnings in response
         if "warnings" in result and result["warnings"]:
@@ -770,7 +832,10 @@ def create_table(
             # New API: use session
             session = SESSION_MANAGER.get_session(session_id)
             if not session:
-                return f"Error: Session {session_id} not found. Please open the workbook first using open_workbook()."
+                return ERROR_TEMPLATES['SESSION_NOT_FOUND'].format(
+                    session_id=session_id, 
+                    ttl=10  # Default TTL is 10 minutes (600 seconds)
+                )
             
             with session.lock:
                 from xlwings_mcp.xlwings_impl.advanced_xlw import create_table_xlw_with_wb
@@ -794,7 +859,10 @@ def create_table(
                 table_style=table_style
             )
         else:
-            return "Error: Either session_id or filepath must be provided"
+            return ERROR_TEMPLATES['PARAMETER_MISSING'].format(
+                param1='session_id',
+                param2='filepath'
+            )
         
         return result.get("message", "Table created successfully") if "error" not in result else f"Error: {result['error']}"
         
@@ -828,7 +896,10 @@ def copy_worksheet(
             # New API: use session
             session = SESSION_MANAGER.get_session(session_id)
             if not session:
-                return f"Error: Session {session_id} not found. Please open the workbook first using open_workbook()."
+                return ERROR_TEMPLATES['SESSION_NOT_FOUND'].format(
+                    session_id=session_id, 
+                    ttl=10  # Default TTL is 10 minutes (600 seconds)
+                )
             
             with session.lock:
                 from xlwings_mcp.xlwings_impl.workbook_xlw import copy_worksheet_xlw_with_wb
@@ -839,7 +910,10 @@ def copy_worksheet(
             full_path = get_excel_path(filepath)
             result = copy_sheet(full_path, source_sheet, target_sheet)
         else:
-            return "Error: Either session_id or filepath must be provided"
+            return ERROR_TEMPLATES['PARAMETER_MISSING'].format(
+                param1='session_id',
+                param2='filepath'
+            )
         
         return result.get("message", "Worksheet copied successfully") if "error" not in result else f"Error: {result['error']}"
         
@@ -871,7 +945,10 @@ def delete_worksheet(
             # New API: use session
             session = SESSION_MANAGER.get_session(session_id)
             if not session:
-                return f"Error: Session {session_id} not found. Please open the workbook first using open_workbook()."
+                return ERROR_TEMPLATES['SESSION_NOT_FOUND'].format(
+                    session_id=session_id, 
+                    ttl=10  # Default TTL is 10 minutes (600 seconds)
+                )
             
             with session.lock:
                 from xlwings_mcp.xlwings_impl.workbook_xlw import delete_worksheet_xlw_with_wb
@@ -882,7 +959,10 @@ def delete_worksheet(
             full_path = get_excel_path(filepath)
             result = delete_sheet(full_path, sheet_name)
         else:
-            return "Error: Either session_id or filepath must be provided"
+            return ERROR_TEMPLATES['PARAMETER_MISSING'].format(
+                param1='session_id',
+                param2='filepath'
+            )
         
         return result.get("message", "Worksheet deleted successfully") if "error" not in result else f"Error: {result['error']}"
         
@@ -916,7 +996,10 @@ def rename_worksheet(
             # New API: use session
             session = SESSION_MANAGER.get_session(session_id)
             if not session:
-                return f"Error: Session {session_id} not found. Please open the workbook first using open_workbook()."
+                return ERROR_TEMPLATES['SESSION_NOT_FOUND'].format(
+                    session_id=session_id, 
+                    ttl=10  # Default TTL is 10 minutes (600 seconds)
+                )
             
             with session.lock:
                 from xlwings_mcp.xlwings_impl.workbook_xlw import rename_worksheet_xlw_with_wb
@@ -927,7 +1010,10 @@ def rename_worksheet(
             full_path = get_excel_path(filepath)
             result = rename_sheet(full_path, old_name, new_name)
         else:
-            return "Error: Either session_id or filepath must be provided"
+            return ERROR_TEMPLATES['PARAMETER_MISSING'].format(
+                param1='session_id',
+                param2='filepath'
+            )
         
         return result.get("message", "Worksheet renamed successfully") if "error" not in result else f"Error: {result['error']}"
         
@@ -959,7 +1045,10 @@ def get_workbook_metadata(
             # New API: use session
             session = SESSION_MANAGER.get_session(session_id)
             if not session:
-                return f"Error: Session {session_id} not found. Please open the workbook first using open_workbook()."
+                return ERROR_TEMPLATES['SESSION_NOT_FOUND'].format(
+                    session_id=session_id, 
+                    ttl=10  # Default TTL is 10 minutes (600 seconds)
+                )
             
             with session.lock:
                 from xlwings_mcp.xlwings_impl.workbook_xlw import get_workbook_metadata_xlw_with_wb
@@ -971,7 +1060,10 @@ def get_workbook_metadata(
             from xlwings_mcp.xlwings_impl.workbook_xlw import get_workbook_metadata_xlw
             result = get_workbook_metadata_xlw(full_path, include_ranges=include_ranges)
         else:
-            return "Error: Either session_id or filepath must be provided"
+            return ERROR_TEMPLATES['PARAMETER_MISSING'].format(
+                param1='session_id',
+                param2='filepath'
+            )
         
         if "error" in result:
             return f"Error: {result['error']}"
@@ -1010,7 +1102,10 @@ def merge_cells(
             # New API: use session
             session = SESSION_MANAGER.get_session(session_id)
             if not session:
-                return f"Error: Session {session_id} not found. Please open the workbook first using open_workbook()."
+                return ERROR_TEMPLATES['SESSION_NOT_FOUND'].format(
+                    session_id=session_id, 
+                    ttl=10  # Default TTL is 10 minutes (600 seconds)
+                )
             
             with session.lock:
                 from xlwings_mcp.xlwings_impl.range_xlw import merge_cells_xlw_with_wb
@@ -1022,7 +1117,10 @@ def merge_cells(
             from xlwings_mcp.xlwings_impl.range_xlw import merge_cells_xlw
             result = merge_cells_xlw(full_path, sheet_name, start_cell, end_cell)
         else:
-            return "Error: Either session_id or filepath must be provided"
+            return ERROR_TEMPLATES['PARAMETER_MISSING'].format(
+                param1='session_id',
+                param2='filepath'
+            )
         
         return result.get("message", "Cells merged successfully") if "error" not in result else f"Error: {result['error']}"
     except (ValidationError, SheetError) as e:
@@ -1057,7 +1155,10 @@ def unmerge_cells(
             # New API: use session
             session = SESSION_MANAGER.get_session(session_id)
             if not session:
-                return f"Error: Session {session_id} not found. Please open the workbook first using open_workbook()."
+                return ERROR_TEMPLATES['SESSION_NOT_FOUND'].format(
+                    session_id=session_id, 
+                    ttl=10  # Default TTL is 10 minutes (600 seconds)
+                )
             
             with session.lock:
                 from xlwings_mcp.xlwings_impl.range_xlw import unmerge_cells_xlw_with_wb
@@ -1069,7 +1170,10 @@ def unmerge_cells(
             from xlwings_mcp.xlwings_impl.range_xlw import unmerge_cells_xlw
             result = unmerge_cells_xlw(full_path, sheet_name, start_cell, end_cell)
         else:
-            return "Error: Either session_id or filepath must be provided"
+            return ERROR_TEMPLATES['PARAMETER_MISSING'].format(
+                param1='session_id',
+                param2='filepath'
+            )
         
         return result.get("message", "Cells unmerged successfully") if "error" not in result else f"Error: {result['error']}"
     except (ValidationError, SheetError) as e:
@@ -1100,7 +1204,10 @@ def get_merged_cells(
             # New API: use session
             session = SESSION_MANAGER.get_session(session_id)
             if not session:
-                return f"Error: Session {session_id} not found. Please open the workbook first using open_workbook()."
+                return ERROR_TEMPLATES['SESSION_NOT_FOUND'].format(
+                    session_id=session_id, 
+                    ttl=10  # Default TTL is 10 minutes (600 seconds)
+                )
             
             with session.lock:
                 from xlwings_mcp.xlwings_impl.range_xlw import get_merged_cells_xlw_with_wb
@@ -1120,7 +1227,10 @@ def get_merged_cells(
             import json
             return json.dumps(result, indent=2, default=str)
         else:
-            return "Error: Either session_id or filepath must be provided"
+            return ERROR_TEMPLATES['PARAMETER_MISSING'].format(
+                param1='session_id',
+                param2='filepath'
+            )
         
     except (ValidationError, SheetError) as e:
         return f"Error: {str(e)}"
@@ -1158,7 +1268,10 @@ def copy_range(
             # New API: use session
             session = SESSION_MANAGER.get_session(session_id)
             if not session:
-                return f"Error: Session {session_id} not found. Please open the workbook first using open_workbook()."
+                return ERROR_TEMPLATES['SESSION_NOT_FOUND'].format(
+                    session_id=session_id, 
+                    ttl=10  # Default TTL is 10 minutes (600 seconds)
+                )
             
             with session.lock:
                 from xlwings_mcp.xlwings_impl.range_xlw import copy_range_xlw_with_wb
@@ -1184,7 +1297,10 @@ def copy_range(
                 target_sheet or sheet_name  # Use source sheet if target_sheet is None
             )
         else:
-            return "Error: Either session_id or filepath must be provided"
+            return ERROR_TEMPLATES['PARAMETER_MISSING'].format(
+                param1='session_id',
+                param2='filepath'
+            )
         
         return result.get("message", "Range copied successfully") if "error" not in result else f"Error: {result['error']}"
     except (ValidationError, SheetError) as e:
@@ -1221,7 +1337,10 @@ def delete_range(
             # New API: use session
             session = SESSION_MANAGER.get_session(session_id)
             if not session:
-                return f"Error: Session {session_id} not found. Please open the workbook first using open_workbook()."
+                return ERROR_TEMPLATES['SESSION_NOT_FOUND'].format(
+                    session_id=session_id, 
+                    ttl=10  # Default TTL is 10 minutes (600 seconds)
+                )
             
             with session.lock:
                 from xlwings_mcp.xlwings_impl.range_xlw import delete_range_xlw_with_wb
@@ -1245,7 +1364,10 @@ def delete_range(
                 shift_direction
             )
         else:
-            return "Error: Either session_id or filepath must be provided"
+            return ERROR_TEMPLATES['PARAMETER_MISSING'].format(
+                param1='session_id',
+                param2='filepath'
+            )
         
         return result.get("message", "Range deleted successfully") if "error" not in result else f"Error: {result['error']}"
     except (ValidationError, SheetError) as e:
@@ -1280,7 +1402,10 @@ def validate_excel_range(
             # New API: use session
             session = SESSION_MANAGER.get_session(session_id)
             if not session:
-                return f"Error: Session {session_id} not found. Please open the workbook first using open_workbook()."
+                return ERROR_TEMPLATES['SESSION_NOT_FOUND'].format(
+                    session_id=session_id, 
+                    ttl=10  # Default TTL is 10 minutes (600 seconds)
+                )
             
             with session.lock:
                 from xlwings_mcp.xlwings_impl.validation_xlw import validate_excel_range_xlw_with_wb
@@ -1292,7 +1417,10 @@ def validate_excel_range(
             from xlwings_mcp.xlwings_impl.validation_xlw import validate_excel_range_xlw
             result = validate_excel_range_xlw(full_path, sheet_name, start_cell, end_cell)
         else:
-            return "Error: Either session_id or filepath must be provided"
+            return ERROR_TEMPLATES['PARAMETER_MISSING'].format(
+                param1='session_id',
+                param2='filepath'
+            )
         
         return result.get("message", "Range validation completed") if "error" not in result else f"Error: {result['error']}"
             
@@ -1330,7 +1458,10 @@ def get_data_validation_info(
             # New API: use session
             session = SESSION_MANAGER.get_session(session_id)
             if not session:
-                return f"Error: Session {session_id} not found. Please open the workbook first using open_workbook()."
+                return ERROR_TEMPLATES['SESSION_NOT_FOUND'].format(
+                    session_id=session_id, 
+                    ttl=10  # Default TTL is 10 minutes (600 seconds)
+                )
             
             with session.lock:
                 from xlwings_mcp.xlwings_impl.validation_xlw import get_data_validation_info_xlw_with_wb
@@ -1342,7 +1473,10 @@ def get_data_validation_info(
             from xlwings_mcp.xlwings_impl.validation_xlw import get_data_validation_info_xlw
             result = get_data_validation_info_xlw(full_path, sheet_name)
         else:
-            return "Error: Either session_id or filepath must be provided"
+            return ERROR_TEMPLATES['PARAMETER_MISSING'].format(
+                param1='session_id',
+                param2='filepath'
+            )
         
         if "error" in result:
             return f"Error: {result['error']}"
@@ -1381,7 +1515,10 @@ def insert_rows(
             # New API: use session
             session = SESSION_MANAGER.get_session(session_id)
             if not session:
-                return f"Error: Session {session_id} not found. Please open the workbook first using open_workbook()."
+                return ERROR_TEMPLATES['SESSION_NOT_FOUND'].format(
+                    session_id=session_id, 
+                    ttl=10  # Default TTL is 10 minutes (600 seconds)
+                )
             
             with session.lock:
                 from xlwings_mcp.xlwings_impl.rows_cols_xlw import insert_rows_xlw_with_wb
@@ -1393,7 +1530,10 @@ def insert_rows(
             from xlwings_mcp.xlwings_impl.rows_cols_xlw import insert_rows_xlw
             result = insert_rows_xlw(full_path, sheet_name, start_row, count)
         else:
-            return "Error: Either session_id or filepath must be provided"
+            return ERROR_TEMPLATES['PARAMETER_MISSING'].format(
+                param1='session_id',
+                param2='filepath'
+            )
         
         if "error" in result:
             return f"Error: {result['error']}"
@@ -1431,7 +1571,10 @@ def insert_columns(
             # New API: use session
             session = SESSION_MANAGER.get_session(session_id)
             if not session:
-                return f"Error: Session {session_id} not found. Please open the workbook first using open_workbook()."
+                return ERROR_TEMPLATES['SESSION_NOT_FOUND'].format(
+                    session_id=session_id, 
+                    ttl=10  # Default TTL is 10 minutes (600 seconds)
+                )
             
             with session.lock:
                 from xlwings_mcp.xlwings_impl.rows_cols_xlw import insert_columns_xlw_with_wb
@@ -1443,7 +1586,10 @@ def insert_columns(
             from xlwings_mcp.xlwings_impl.rows_cols_xlw import insert_columns_xlw
             result = insert_columns_xlw(full_path, sheet_name, start_col, count)
         else:
-            return "Error: Either session_id or filepath must be provided"
+            return ERROR_TEMPLATES['PARAMETER_MISSING'].format(
+                param1='session_id',
+                param2='filepath'
+            )
         
         if "error" in result:
             return f"Error: {result['error']}"
@@ -1481,7 +1627,10 @@ def delete_sheet_rows(
             # New API: use session
             session = SESSION_MANAGER.get_session(session_id)
             if not session:
-                return f"Error: Session {session_id} not found. Please open the workbook first using open_workbook()."
+                return ERROR_TEMPLATES['SESSION_NOT_FOUND'].format(
+                    session_id=session_id, 
+                    ttl=10  # Default TTL is 10 minutes (600 seconds)
+                )
             
             with session.lock:
                 from xlwings_mcp.xlwings_impl.rows_cols_xlw import delete_sheet_rows_xlw_with_wb
@@ -1493,7 +1642,10 @@ def delete_sheet_rows(
             from xlwings_mcp.xlwings_impl.rows_cols_xlw import delete_sheet_rows_xlw
             result = delete_sheet_rows_xlw(full_path, sheet_name, start_row, count)
         else:
-            return "Error: Either session_id or filepath must be provided"
+            return ERROR_TEMPLATES['PARAMETER_MISSING'].format(
+                param1='session_id',
+                param2='filepath'
+            )
         
         if "error" in result:
             return f"Error: {result['error']}"
@@ -1531,7 +1683,10 @@ def delete_sheet_columns(
             # New API: use session
             session = SESSION_MANAGER.get_session(session_id)
             if not session:
-                return f"Error: Session {session_id} not found. Please open the workbook first using open_workbook()."
+                return ERROR_TEMPLATES['SESSION_NOT_FOUND'].format(
+                    session_id=session_id, 
+                    ttl=10  # Default TTL is 10 minutes (600 seconds)
+                )
             
             with session.lock:
                 from xlwings_mcp.xlwings_impl.rows_cols_xlw import delete_sheet_columns_xlw_with_wb
@@ -1543,7 +1698,10 @@ def delete_sheet_columns(
             from xlwings_mcp.xlwings_impl.rows_cols_xlw import delete_sheet_columns_xlw
             result = delete_sheet_columns_xlw(full_path, sheet_name, start_col, count)
         else:
-            return "Error: Either session_id or filepath must be provided"
+            return ERROR_TEMPLATES['PARAMETER_MISSING'].format(
+                param1='session_id',
+                param2='filepath'
+            )
         
         if "error" in result:
             return f"Error: {result['error']}"

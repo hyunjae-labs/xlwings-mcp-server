@@ -44,18 +44,21 @@ def create_chart_xlw_with_wb(
         
         sheet = wb.sheets[sheet_name]
         
-        # Map chart types to Excel constants
+        # Map chart types to Excel constants (Microsoft XlChartType enumeration)
         chart_type_map = {
+            'column': -4100,    # xlColumnClustered
+            'bar': -4099,       # xlBarClustered
             'line': 4,          # xlLine
-            'bar': 57,          # xlBarClustered
-            'column': 51,       # xlColumnClustered
             'pie': 5,           # xlPie
-            'scatter': 74,      # xlXYScatter
             'area': 1,          # xlArea
+            'scatter': -4169,   # xlXYScatter
+            'doughnut': -4120,  # xlDoughnut
+            'radar': -4151,     # xlRadarMarkers
         }
         
         if chart_type.lower() not in chart_type_map:
-            return {"error": f"Unsupported chart type: {chart_type}"}
+            available_types = ', '.join(chart_type_map.keys())
+            return {"error": f"CHART_TYPE_ERROR: '{chart_type}' is not supported. Available types: {available_types}"}
         
         excel_chart_type = chart_type_map[chart_type.lower()]
         
@@ -68,20 +71,30 @@ def create_chart_xlw_with_wb(
         # Set data source
         chart.set_source_data(data_range_obj)
         
-        # Set chart type - handle COM API properly
+        # Set chart type - use xlwings chart_type property or COM API
         try:
+            # First try xlwings native method (accepts string)
             if hasattr(chart, 'chart_type'):
-                # Use xlwings built-in chart type property
-                chart.chart_type = chart_type.lower()
+                try:
+                    # xlwings accepts the string directly
+                    chart.chart_type = chart_type.lower()
+                    logger.info(f"Set chart type to {chart_type} using xlwings method")
+                except:
+                    # If string doesn't work, try the constant
+                    chart.chart_type = excel_chart_type
+                    logger.info(f"Set chart type to {chart_type} using constant {excel_chart_type}")
             else:
-                # Use COM API more carefully
+                # Fallback to COM API
                 chart_api = chart.api
                 if hasattr(chart_api, 'ChartType'):
                     chart_api.ChartType = excel_chart_type
+                    logger.info(f"Set chart type to {chart_type} via COM API (constant: {excel_chart_type})")
                 else:
-                    logger.warning("Cannot set chart type - using default")
+                    # Last resort - chart may already have correct type from creation
+                    logger.warning(f"Could not explicitly set chart type, using default")
         except Exception as e:
-            logger.warning(f"Chart type setting failed: {e}, using default")
+            # Non-fatal: log but continue (chart may still work with default type)
+            logger.warning(f"Chart type setting had issues but continuing: {e}")
         
         # Set chart position
         target = sheet.range(target_cell)

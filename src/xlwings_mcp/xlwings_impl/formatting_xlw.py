@@ -4,11 +4,80 @@ Includes cell formatting and formula validation functionality.
 """
 
 import xlwings as xw
-from typing import Dict, Any, Optional
+from typing import Dict, Any, Optional, Tuple
 import logging
 import os
 
 logger = logging.getLogger(__name__)
+
+# W3C CSS3 Standard Colors (16 Basic Colors)
+STANDARD_COLORS = {
+    'black': (0, 0, 0),
+    'silver': (192, 192, 192),
+    'gray': (128, 128, 128),
+    'white': (255, 255, 255),
+    'maroon': (128, 0, 0),
+    'red': (255, 0, 0),
+    'purple': (128, 0, 128),
+    'fuchsia': (255, 0, 255),
+    'green': (0, 128, 0),
+    'lime': (0, 255, 0),
+    'olive': (128, 128, 0),
+    'yellow': (255, 255, 0),
+    'navy': (0, 0, 128),
+    'blue': (0, 0, 255),
+    'teal': (0, 128, 128),
+    'aqua': (0, 255, 255)
+}
+
+def parse_color(color_input: str) -> Tuple[int, int, int]:
+    """
+    Parse color input to RGB tuple.
+    
+    Args:
+        color_input: Color as hex (#RRGGBB), name (yellow), or RGB string
+        
+    Returns:
+        RGB tuple (r, g, b)
+        
+    Raises:
+        ValueError: If color format is invalid
+    """
+    if not color_input:
+        raise ValueError("Color input is empty")
+    
+    # Handle hex colors
+    if color_input.startswith('#'):
+        hex_color = color_input.lstrip('#')
+        if len(hex_color) != 6:
+            raise ValueError(f"Invalid hex color format: {color_input}. Use #RRGGBB")
+        try:
+            return tuple(int(hex_color[i:i+2], 16) for i in (0, 2, 4))
+        except ValueError:
+            raise ValueError(f"Invalid hex color values: {color_input}")
+    
+    # Handle standard color names
+    color_lower = color_input.lower()
+    if color_lower in STANDARD_COLORS:
+        return STANDARD_COLORS[color_lower]
+    
+    # Try to parse as RGB tuple string "(r,g,b)"
+    if ',' in color_input:
+        try:
+            # Remove parentheses and spaces
+            clean = color_input.strip('() ')
+            parts = [int(x.strip()) for x in clean.split(',')]
+            if len(parts) == 3 and all(0 <= p <= 255 for p in parts):
+                return tuple(parts)
+        except:
+            pass
+    
+    # If nothing worked, provide helpful error
+    available_colors = ', '.join(STANDARD_COLORS.keys())
+    raise ValueError(
+        f"COLOR_FORMAT_ERROR: '{color_input}' is not recognized. "
+        f"Use hex format (#RRGGBB) or standard colors: {available_colors}"
+    )
 
 def format_range_xlw(
     filepath: str,
@@ -92,29 +161,20 @@ def format_range_xlw(
         # Apply font color
         if font_color:
             try:
-                # Convert hex color to RGB if needed
-                if font_color.startswith('#'):
-                    # Remove # and convert hex to RGB
-                    hex_color = font_color.lstrip('#')
-                    rgb = tuple(int(hex_color[i:i+2], 16) for i in (0, 2, 4))
-                    range_obj.font.color = rgb
-                else:
-                    # Use color name or index
-                    range_obj.font.color = font_color
-            except:
-                logger.warning(f"Could not apply font color: {font_color}")
+                rgb = parse_color(font_color)
+                range_obj.font.color = rgb
+                logger.info(f"Applied font color: {font_color} -> RGB{rgb}")
+            except ValueError as e:
+                return {"error": str(e)}
         
         # Apply background color
         if bg_color:
             try:
-                if bg_color.startswith('#'):
-                    hex_color = bg_color.lstrip('#')
-                    rgb = tuple(int(hex_color[i:i+2], 16) for i in (0, 2, 4))
-                    range_obj.color = rgb
-                else:
-                    range_obj.color = bg_color
-            except:
-                logger.warning(f"Could not apply background color: {bg_color}")
+                rgb = parse_color(bg_color)
+                range_obj.color = rgb
+                logger.info(f"Applied background color: {bg_color} -> RGB{rgb}")
+            except ValueError as e:
+                return {"error": str(e)}
         
         # Apply borders using COM API
         if border_style:
@@ -389,29 +449,20 @@ def format_range_xlw_with_wb(
         # Apply font color
         if font_color:
             try:
-                # Convert hex color to RGB if needed
-                if font_color.startswith('#'):
-                    # Remove # and convert hex to RGB
-                    hex_color = font_color.lstrip('#')
-                    rgb = tuple(int(hex_color[i:i+2], 16) for i in (0, 2, 4))
-                    range_obj.font.color = rgb
-                else:
-                    # Use color name or index
-                    range_obj.font.color = font_color
-            except:
-                logger.warning(f"Could not apply font color: {font_color}")
+                rgb = parse_color(font_color)
+                range_obj.font.color = rgb
+                logger.info(f"Applied font color: {font_color} -> RGB{rgb}")
+            except ValueError as e:
+                return {"error": str(e)}
         
         # Apply background color
         if bg_color:
             try:
-                if bg_color.startswith('#'):
-                    hex_color = bg_color.lstrip('#')
-                    rgb = tuple(int(hex_color[i:i+2], 16) for i in (0, 2, 4))
-                    range_obj.color = rgb
-                else:
-                    range_obj.color = bg_color
-            except:
-                logger.warning(f"Could not apply background color: {bg_color}")
+                rgb = parse_color(bg_color)
+                range_obj.color = rgb
+                logger.info(f"Applied background color: {bg_color} -> RGB{rgb}")
+            except ValueError as e:
+                return {"error": str(e)}
         
         # Apply borders using COM API
         if border_style:

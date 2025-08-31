@@ -8,6 +8,7 @@ __pycache__/
 # Development files
 XLWINGS_*.md
 *.md
+README.md
 
 # Personal config files
 xlwings-mcp-server-template.yaml
@@ -18,3 +19,34 @@ archive_temp_files/
 
 # Serena files
 .serena
+
+# Test files and results
+test/
+*.xlsx
+*.pkl
+
+# Log files
+excel-mcp.log
+*.log
+
+# Claude specific files
+.claude/
+
+# MCP configuration
+.mcp.json
+
+# Python cache
+*.pyc
+*.pyo
+*.pyd
+.Python
+*.so
+*.egg
+*.egg-info/
+
+# IDE files
+.vscode/
+.idea/
+*.swp
+*.swo
+*~

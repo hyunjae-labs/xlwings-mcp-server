@@ -17,6 +17,54 @@ import xlwings as xw
 logger = logging.getLogger(__name__)
 
 
+def is_file_locked(filepath: str) -> bool:
+    """
+    Check if a file is locked by another process.
+    
+    Args:
+        filepath: Path to the file to check
+        
+    Returns:
+        True if file is locked, False otherwise
+    """
+    try:
+        import psutil
+        abs_path = os.path.abspath(filepath)
+        
+        # Get all processes
+        for proc in psutil.process_iter(['pid', 'name']):
+            try:
+                # Check if process has the file open
+                for item in proc.open_files():
+                    if item.path == abs_path:
+                        logger.info(f"FILE_LOCKED: {filepath} is locked by {proc.info['name']} (PID: {proc.info['pid']})")
+                        return True
+            except (psutil.NoSuchProcess, psutil.AccessDenied):
+                continue
+    except ImportError:
+        # If psutil is not available, try to open file exclusively
+        try:
+            with open(filepath, 'r+b') as f:
+                import fcntl
+                fcntl.flock(f.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
+                fcntl.flock(f.fileno(), fcntl.LOCK_UN)
+            return False
+        except (IOError, OSError):
+            return True
+        except ImportError:
+            # Windows fallback
+            try:
+                import msvcrt
+                with open(filepath, 'r+b') as f:
+                    msvcrt.locking(f.fileno(), msvcrt.LK_NBLCK, 1)
+                    msvcrt.locking(f.fileno(), msvcrt.LK_UNLCK, 1)
+                return False
+            except:
+                return True
+    
+    return False
+
+
 class ExcelSession:
     """Represents an Excel workbook session"""
     
@@ -103,6 +151,11 @@ class ExcelSessionManager:
             abs_path = os.path.abspath(filepath)
             
             if os.path.exists(abs_path):
+                # Check if file is locked before trying to open
+                if not read_only and is_file_locked(abs_path):
+                    app.quit()  # Clean up the app we just created
+                    raise IOError(f"FILE_ACCESS_ERROR: '{abs_path}' is locked by another process. Use force_close_workbook_by_path() to force close it first.")
+                
                 wb = app.books.open(abs_path, read_only=read_only)
                 logger.debug(f"Opened existing workbook: {abs_path}")
             else:
@@ -137,10 +190,26 @@ class ExcelSessionManager:
         with self._sessions_lock:
             session = self._sessions.get(session_id)
             if session:
+                # Check if session is expired
+                if hasattr(session, 'last_accessed'):
+                    time_since_access = time.time() - session.last_accessed
+                    if time_since_access > self.ttl:
+                        logger.warning(f"SESSION_TIMEOUT: Session '{session_id}' expired (last accessed {time_since_access:.0f}s ago, TTL={self.ttl}s)")
+                        # Clean up expired session
+                        try:
+                            if session.workbook:
+                                session.workbook.close()
+                            if session.app:
+                                session.app.quit()
+                        except:
+                            pass
+                        del self._sessions[session_id]
+                        return None
+                
                 session.touch()
                 logger.debug(f"Session {session_id} accessed")
             else:
-                logger.warning(f"Session {session_id} not found")
+                logger.warning(f"SESSION_NOT_FOUND: Session '{session_id}' not found. It may have expired or been closed.")
             return session
     
     def close_workbook(self, session_id: str, save: bool = True) -> bool:
