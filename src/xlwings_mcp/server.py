@@ -18,13 +18,7 @@ from xlwings_mcp.exceptions import (
     ChartError
 )
 
-# Import from xlwings_mcp package (only functions still used by server)
-from xlwings_mcp.workbook import get_workbook_info
-from xlwings_mcp.sheet import (
-    copy_sheet,
-    delete_sheet,
-    rename_sheet,
-)
+# All functions now use xlwings_impl - legacy imports removed for clean architecture
 
 # Import session management
 from xlwings_mcp.session import SESSION_MANAGER
@@ -38,21 +32,26 @@ from xlwings_mcp.force_close import force_close_workbook_by_path
 # Thus using os.path.join(ROOT_DIR, "excel-mcp.log") instead.
 
 ROOT_DIR = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-LOG_FILE = os.path.join(ROOT_DIR, "excel-mcp.log")
+LOGS_DIR = os.path.join(ROOT_DIR, "logs")
+os.makedirs(LOGS_DIR, exist_ok=True)
+LOG_FILE = os.path.join(LOGS_DIR, "excel-mcp.log")
 
 # Initialize EXCEL_FILES_PATH variable without assigning a value
 EXCEL_FILES_PATH = None
 
 # xlwings 구현 사용 (openpyxl 마이그레이션 완료)
 
-# Configure logging
+# Configure logging with rotation to prevent infinite log growth
+from logging.handlers import RotatingFileHandler
+
 logging.basicConfig(
     level=logging.INFO,
     format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
     handlers=[
         # Referring to https://github.com/modelcontextprotocol/python-sdk/issues/409#issuecomment-2816831318
         # The stdio mode server MUST NOT write anything to its stdout that is not a valid MCP message.
-        logging.FileHandler(LOG_FILE)
+        # Use RotatingFileHandler to prevent infinite log growth (5MB max, keep 3 backup files)
+        RotatingFileHandler(LOG_FILE, maxBytes=5*1024*1024, backupCount=3)
     ],
 )
 logger = logging.getLogger("excel-mcp")
@@ -68,6 +67,31 @@ ERROR_TEMPLATES = {
     'INVALID_RANGE': "INVALID_RANGE: Range '{range}' is not valid. Use format like 'A1' or 'A1:B10'.",
     'PARAMETER_MISSING': "PARAMETER_MISSING: Either {param1} or {param2} must be provided.",
 }
+
+# Session validation decorator for DRY principle
+def get_validated_session(session_id: str):
+    """
+    Helper function to validate session_id and return session object.
+    Centralizes session validation logic for DRY principle.
+    
+    Args:
+        session_id: Session ID to validate
+        
+    Returns:
+        Session object if valid, error message string if invalid
+    """
+    if not session_id:
+        return ERROR_TEMPLATES['PARAMETER_MISSING'].format(
+            param1='session_id', param2='valid session'
+        )
+    
+    session = SESSION_MANAGER.get_session(session_id)
+    if not session:
+        return ERROR_TEMPLATES['SESSION_NOT_FOUND'].format(
+            session_id=session_id, ttl=10
+        )
+    
+    return session
 
 # Initialize FastMCP server
 mcp = FastMCP(
@@ -222,13 +246,10 @@ def apply_formula(
         formula: Excel formula to apply
     """
     try:
-        # Get session (required)
-        session = SESSION_MANAGER.get_session(session_id)
-        if not session:
-            return ERROR_TEMPLATES['SESSION_NOT_FOUND'].format(
-                session_id=session_id, 
-                ttl=10  # Default TTL is 10 minutes (600 seconds)
-            )
+        # Validate session using centralized helper
+        session = get_validated_session(session_id)
+        if isinstance(session, str):  # Error message returned
+            return session
         
         with session.lock:
             from xlwings_mcp.xlwings_impl.calculations_xlw import apply_formula_xlw_with_wb
@@ -429,14 +450,11 @@ def read_data_from_excel(
         preview_only: Whether to return preview only
     """
     try:
-        # Get session (required)
-        session = SESSION_MANAGER.get_session(session_id)
-        if not session:
-            return ERROR_TEMPLATES['SESSION_NOT_FOUND'].format(
-                session_id=session_id, 
-                ttl=10  # Default TTL is 10 minutes (600 seconds)
-            )
-        
+        # Validate session using centralized helper
+        session = get_validated_session(session_id)
+        if isinstance(session, str):  # Error message returned
+            return session
+            
         with session.lock:
             from xlwings_mcp.xlwings_impl.data_xlw import read_data_from_excel_xlw_with_wb
             return read_data_from_excel_xlw_with_wb(session.workbook, sheet_name, start_cell, end_cell, preview_only)
@@ -465,14 +483,11 @@ def write_data_to_excel(
         start_cell: Cell to start writing to (optional, auto-finds appropriate location)
     """
     try:
-        # Get session (required)
-        session = SESSION_MANAGER.get_session(session_id)
-        if not session:
-            return ERROR_TEMPLATES['SESSION_NOT_FOUND'].format(
-                session_id=session_id, 
-                ttl=10  # Default TTL is 10 minutes (600 seconds)
-            )
-        
+        # Validate session using centralized helper
+        session = get_validated_session(session_id)
+        if isinstance(session, str):  # Error message returned
+            return session
+            
         with session.lock:
             from xlwings_mcp.xlwings_impl.data_xlw import write_data_to_excel_xlw_with_wb
             result = write_data_to_excel_xlw_with_wb(session.workbook, sheet_name, data, start_cell)
@@ -543,14 +558,11 @@ def create_worksheet(
         sheet_name: Name of the new worksheet
     """
     try:
-        # Get session (required)
-        session = SESSION_MANAGER.get_session(session_id)
-        if not session:
-            return ERROR_TEMPLATES['SESSION_NOT_FOUND'].format(
-                session_id=session_id, 
-                ttl=10  # Default TTL is 10 minutes (600 seconds)
-            )
-        
+        # Validate session using centralized helper
+        session = get_validated_session(session_id)
+        if isinstance(session, str):  # Error message returned
+            return session
+            
         with session.lock:
             from xlwings_mcp.xlwings_impl.sheet_xlw import create_worksheet_xlw_with_wb
             result = create_worksheet_xlw_with_wb(session.workbook, sheet_name)
@@ -819,14 +831,11 @@ def copy_worksheet(
         target_sheet: Name of the target worksheet
     """
     try:
-        # Get session (required)
-        session = SESSION_MANAGER.get_session(session_id)
-        if not session:
-            return ERROR_TEMPLATES['SESSION_NOT_FOUND'].format(
-                session_id=session_id, 
-                ttl=10  # Default TTL is 10 minutes (600 seconds)
-            )
-        
+        # Validate session using centralized helper
+        session = get_validated_session(session_id)
+        if isinstance(session, str):  # Error message returned
+            return session
+            
         with session.lock:
             from xlwings_mcp.xlwings_impl.sheet_xlw import copy_worksheet_xlw_with_wb
             result = copy_worksheet_xlw_with_wb(session.workbook, source_sheet, target_sheet)
@@ -852,14 +861,11 @@ def delete_worksheet(
         sheet_name: Name of the worksheet to delete
     """
     try:
-        # Get session (required)
-        session = SESSION_MANAGER.get_session(session_id)
-        if not session:
-            return ERROR_TEMPLATES['SESSION_NOT_FOUND'].format(
-                session_id=session_id, 
-                ttl=10  # Default TTL is 10 minutes (600 seconds)
-            )
-        
+        # Validate session using centralized helper
+        session = get_validated_session(session_id)
+        if isinstance(session, str):  # Error message returned
+            return session
+            
         with session.lock:
             from xlwings_mcp.xlwings_impl.sheet_xlw import delete_worksheet_xlw_with_wb
             result = delete_worksheet_xlw_with_wb(session.workbook, sheet_name)
@@ -887,14 +893,11 @@ def rename_worksheet(
         new_name: New name for the worksheet
     """
     try:
-        # Get session (required)
-        session = SESSION_MANAGER.get_session(session_id)
-        if not session:
-            return ERROR_TEMPLATES['SESSION_NOT_FOUND'].format(
-                session_id=session_id, 
-                ttl=10  # Default TTL is 10 minutes (600 seconds)
-            )
-        
+        # Validate session using centralized helper
+        session = get_validated_session(session_id)
+        if isinstance(session, str):  # Error message returned
+            return session
+            
         with session.lock:
             from xlwings_mcp.xlwings_impl.sheet_xlw import rename_worksheet_xlw_with_wb
             result = rename_worksheet_xlw_with_wb(session.workbook, old_name, new_name)
@@ -920,14 +923,11 @@ def get_workbook_metadata(
         include_ranges: Whether to include range information
     """
     try:
-        # Get session (required)
-        session = SESSION_MANAGER.get_session(session_id)
-        if not session:
-            return ERROR_TEMPLATES['SESSION_NOT_FOUND'].format(
-                session_id=session_id, 
-                ttl=10  # Default TTL is 10 minutes (600 seconds)
-            )
-        
+        # Validate session using centralized helper
+        session = get_validated_session(session_id)
+        if isinstance(session, str):  # Error message returned
+            return session
+            
         with session.lock:
             from xlwings_mcp.xlwings_impl.workbook_xlw import get_workbook_metadata_xlw_with_wb
             result = get_workbook_metadata_xlw_with_wb(session.workbook, include_ranges=include_ranges)

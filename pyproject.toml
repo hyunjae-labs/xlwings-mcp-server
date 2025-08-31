@@ -9,7 +9,8 @@ dependencies = [
     "fastmcp>=2.0.0,<3.0.0",
     "xlwings>=0.30.0",
     "typer>=0.16.0",
-    "pywin32>=306; sys_platform == 'win32'"
+    "pywin32>=306; sys_platform == 'win32'",
+    "psutil>=5.9.0"
 ]
 [[project.authors]]
 name = "haris"

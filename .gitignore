@@ -24,10 +24,12 @@ archive_temp_files/
 
 # Test files and results
 test/
+test_mcp/
 *.xlsx
 *.pkl
 
 # Log files
+logs/
 excel-mcp.log
 *.log
 

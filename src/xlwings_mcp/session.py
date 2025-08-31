@@ -80,6 +80,20 @@ class ExcelSession:
         self.last_accessed = time.time()
         self.lock = threading.RLock()
         
+        # Track Excel process ID for zombie process cleanup
+        try:
+            self.process_id = getattr(app, 'pid', None) if hasattr(app, 'pid') else None
+            if not self.process_id and hasattr(app, 'api'):
+                # Try to get process ID from COM API
+                import psutil
+                excel_processes = [p for p in psutil.process_iter(['pid', 'name']) if p.info['name'].lower() == 'excel.exe']
+                if excel_processes:
+                    self.process_id = excel_processes[-1].info['pid']  # Get the newest Excel process
+        except Exception:
+            self.process_id = None
+            
+        logger.debug(f"SESSION_CREATE: Session {session_id} created with PID {self.process_id}")
+        
     def touch(self):
         """Update last access time"""
         self.last_accessed = time.time()
@@ -466,14 +480,32 @@ class ExcelSessionManager:
                             # Extract session info for recovery before cleanup
                             session_info = self._extract_session_info(session)
                             
-                            # Clean up Excel resources
+                            # Clean up Excel resources with zombie process protection
+                            cleanup_success = False
                             try:
                                 if session.workbook:
                                     session.workbook.close()
                                 if session.app:
                                     session.app.quit()
+                                cleanup_success = True
+                                logger.debug(f"TTL_CLEANUP: Excel resources cleaned normally for session {session_id}")
                             except Exception as cleanup_error:
-                                logger.warning(f"Error cleaning up Excel resources for session {session_id}: {cleanup_error}")
+                                logger.warning(f"Normal cleanup failed for session {session_id}: {cleanup_error}")
+                            
+                            # Force kill zombie process if normal cleanup failed
+                            if not cleanup_success and hasattr(session, 'process_id') and session.process_id:
+                                try:
+                                    import psutil
+                                    import subprocess
+                                    
+                                    # Check if process still exists
+                                    if psutil.pid_exists(session.process_id):
+                                        logger.warning(f"TTL_CLEANUP: Force killing zombie Excel process {session.process_id} for session {session_id}")
+                                        subprocess.run(['taskkill', '/F', '/PID', str(session.process_id)], 
+                                                     capture_output=True, check=False)
+                                        logger.info(f"TTL_CLEANUP: Zombie process {session.process_id} terminated")
+                                except Exception as force_kill_error:
+                                    logger.error(f"Failed to force kill process {session.process_id}: {force_kill_error}")
                             
                             # Move to expired sessions for potential recovery
                             self._expired_sessions[session_id] = session_info
