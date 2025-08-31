@@ -1,6 +1,6 @@
 [project]
 name = "xlwings-mcp-server"
-version = "0.1.8"
+version = "1.0.0"
 description = "Excel MCP Server for manipulating Excel files using xlwings"
 readme = "README.md"
 requires-python = ">=3.10"

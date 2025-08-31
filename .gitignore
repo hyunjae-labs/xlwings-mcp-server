@@ -7,8 +7,10 @@ __pycache__/
 
 # Development files
 XLWINGS_*.md
-*.md
-README.md
+# Allow important documentation
+!README.md
+!CHANGELOG.md
+!docs/*.md
 
 # Personal config files
 xlwings-mcp-server-template.yaml
