@@ -974,45 +974,28 @@ def rename_worksheet(
 
 @mcp.tool()
 def get_workbook_metadata(
-    session_id: Optional[str] = None,
-    filepath: Optional[str] = None,
+    session_id: str,
     include_ranges: bool = False
 ) -> str:
     """
     Get metadata about workbook including sheets, ranges, etc.
     
     Args:
-        session_id: Session ID from open_workbook (preferred)
-        filepath: Path to Excel file (legacy, deprecated)
+        session_id: Session ID from open_workbook (required)
         include_ranges: Whether to include range information
-        
-    Note: Use session_id for better performance. filepath parameter is deprecated.
     """
     try:
-        # Support both new (session_id) and old (filepath) API
-        if session_id:
-            # New API: use session
-            session = SESSION_MANAGER.get_session(session_id)
-            if not session:
-                return ERROR_TEMPLATES['SESSION_NOT_FOUND'].format(
-                    session_id=session_id, 
-                    ttl=10  # Default TTL is 10 minutes (600 seconds)
-                )
-            
-            with session.lock:
-                from xlwings_mcp.xlwings_impl.workbook_xlw import get_workbook_metadata_xlw_with_wb
-                result = get_workbook_metadata_xlw_with_wb(session.workbook, include_ranges=include_ranges)
-        elif filepath:
-            # Legacy API: backwards compatibility
-            logger.warning("Using deprecated filepath parameter. Please use session_id instead.")
-            full_path = get_excel_path(filepath)
-            from xlwings_mcp.xlwings_impl.workbook_xlw import get_workbook_metadata_xlw
-            result = get_workbook_metadata_xlw(full_path, include_ranges=include_ranges)
-        else:
-            return ERROR_TEMPLATES['PARAMETER_MISSING'].format(
-                param1='session_id',
-                param2='filepath'
+        # Get session (required)
+        session = SESSION_MANAGER.get_session(session_id)
+        if not session:
+            return ERROR_TEMPLATES['SESSION_NOT_FOUND'].format(
+                session_id=session_id, 
+                ttl=10  # Default TTL is 10 minutes (600 seconds)
             )
+        
+        with session.lock:
+            from xlwings_mcp.xlwings_impl.workbook_xlw import get_workbook_metadata_xlw_with_wb
+            result = get_workbook_metadata_xlw_with_wb(session.workbook, include_ranges=include_ranges)
         
         if "error" in result:
             return f"Error: {result['error']}"
