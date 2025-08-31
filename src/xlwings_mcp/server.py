@@ -532,45 +532,28 @@ def create_workbook(
 
 @mcp.tool()
 def create_worksheet(
-    sheet_name: str,
-    session_id: Optional[str] = None,
-    filepath: Optional[str] = None
+    session_id: str,
+    sheet_name: str
 ) -> str:
     """
     Create new worksheet in workbook.
     
     Args:
+        session_id: Session ID from open_workbook (required)
         sheet_name: Name of the new worksheet
-        session_id: Session ID from open_workbook (preferred)
-        filepath: Path to Excel file (legacy, deprecated)
-        
-    Note: Use session_id for better performance. filepath parameter is deprecated.
     """
     try:
-        # Support both new (session_id) and old (filepath) API
-        if session_id:
-            # New API: use session
-            session = SESSION_MANAGER.get_session(session_id)
-            if not session:
-                return ERROR_TEMPLATES['SESSION_NOT_FOUND'].format(
-                    session_id=session_id, 
-                    ttl=10  # Default TTL is 10 minutes (600 seconds)
-                )
-            
-            with session.lock:
-                from xlwings_mcp.xlwings_impl.workbook_xlw import create_worksheet_xlw_with_wb
-                result = create_worksheet_xlw_with_wb(session.workbook, sheet_name)
-        elif filepath:
-            # Legacy API: backwards compatibility
-            logger.warning("Using deprecated filepath parameter. Please use session_id instead.")
-            full_path = get_excel_path(filepath)
-            from xlwings_mcp.workbook import create_sheet as create_worksheet_impl
-            result = create_worksheet_impl(full_path, sheet_name)
-        else:
-            return ERROR_TEMPLATES['PARAMETER_MISSING'].format(
-                param1='session_id',
-                param2='filepath'
+        # Get session (required)
+        session = SESSION_MANAGER.get_session(session_id)
+        if not session:
+            return ERROR_TEMPLATES['SESSION_NOT_FOUND'].format(
+                session_id=session_id, 
+                ttl=10  # Default TTL is 10 minutes (600 seconds)
             )
+        
+        with session.lock:
+            from xlwings_mcp.xlwings_impl.sheet_xlw import create_worksheet_xlw_with_wb
+            result = create_worksheet_xlw_with_wb(session.workbook, sheet_name)
         
         return result.get("message", "Worksheet created successfully") if "error" not in result else f"Error: {result['error']}"
         
@@ -823,46 +806,30 @@ def create_table(
 
 @mcp.tool()
 def copy_worksheet(
+    session_id: str,
     source_sheet: str,
-    target_sheet: str,
-    session_id: Optional[str] = None,
-    filepath: Optional[str] = None
+    target_sheet: str
 ) -> str:
     """
     Copy worksheet within workbook.
     
     Args:
+        session_id: Session ID from open_workbook (required)
         source_sheet: Name of the source worksheet
         target_sheet: Name of the target worksheet
-        session_id: Session ID from open_workbook (preferred)
-        filepath: Path to Excel file (legacy, deprecated)
-        
-    Note: Use session_id for better performance. filepath parameter is deprecated.
     """
     try:
-        # Support both new (session_id) and old (filepath) API
-        if session_id:
-            # New API: use session
-            session = SESSION_MANAGER.get_session(session_id)
-            if not session:
-                return ERROR_TEMPLATES['SESSION_NOT_FOUND'].format(
-                    session_id=session_id, 
-                    ttl=10  # Default TTL is 10 minutes (600 seconds)
-                )
-            
-            with session.lock:
-                from xlwings_mcp.xlwings_impl.workbook_xlw import copy_worksheet_xlw_with_wb
-                result = copy_worksheet_xlw_with_wb(session.workbook, source_sheet, target_sheet)
-        elif filepath:
-            # Legacy API: backwards compatibility
-            logger.warning("Using deprecated filepath parameter. Please use session_id instead.")
-            full_path = get_excel_path(filepath)
-            result = copy_sheet(full_path, source_sheet, target_sheet)
-        else:
-            return ERROR_TEMPLATES['PARAMETER_MISSING'].format(
-                param1='session_id',
-                param2='filepath'
+        # Get session (required)
+        session = SESSION_MANAGER.get_session(session_id)
+        if not session:
+            return ERROR_TEMPLATES['SESSION_NOT_FOUND'].format(
+                session_id=session_id, 
+                ttl=10  # Default TTL is 10 minutes (600 seconds)
             )
+        
+        with session.lock:
+            from xlwings_mcp.xlwings_impl.sheet_xlw import copy_worksheet_xlw_with_wb
+            result = copy_worksheet_xlw_with_wb(session.workbook, source_sheet, target_sheet)
         
         return result.get("message", "Worksheet copied successfully") if "error" not in result else f"Error: {result['error']}"
         
@@ -874,44 +841,28 @@ def copy_worksheet(
 
 @mcp.tool()
 def delete_worksheet(
-    sheet_name: str,
-    session_id: Optional[str] = None,
-    filepath: Optional[str] = None
+    session_id: str,
+    sheet_name: str
 ) -> str:
     """
     Delete worksheet from workbook.
     
     Args:
+        session_id: Session ID from open_workbook (required)
         sheet_name: Name of the worksheet to delete
-        session_id: Session ID from open_workbook (preferred)
-        filepath: Path to Excel file (legacy, deprecated)
-        
-    Note: Use session_id for better performance. filepath parameter is deprecated.
     """
     try:
-        # Support both new (session_id) and old (filepath) API
-        if session_id:
-            # New API: use session
-            session = SESSION_MANAGER.get_session(session_id)
-            if not session:
-                return ERROR_TEMPLATES['SESSION_NOT_FOUND'].format(
-                    session_id=session_id, 
-                    ttl=10  # Default TTL is 10 minutes (600 seconds)
-                )
-            
-            with session.lock:
-                from xlwings_mcp.xlwings_impl.workbook_xlw import delete_worksheet_xlw_with_wb
-                result = delete_worksheet_xlw_with_wb(session.workbook, sheet_name)
-        elif filepath:
-            # Legacy API: backwards compatibility
-            logger.warning("Using deprecated filepath parameter. Please use session_id instead.")
-            full_path = get_excel_path(filepath)
-            result = delete_sheet(full_path, sheet_name)
-        else:
-            return ERROR_TEMPLATES['PARAMETER_MISSING'].format(
-                param1='session_id',
-                param2='filepath'
+        # Get session (required)
+        session = SESSION_MANAGER.get_session(session_id)
+        if not session:
+            return ERROR_TEMPLATES['SESSION_NOT_FOUND'].format(
+                session_id=session_id, 
+                ttl=10  # Default TTL is 10 minutes (600 seconds)
             )
+        
+        with session.lock:
+            from xlwings_mcp.xlwings_impl.sheet_xlw import delete_worksheet_xlw_with_wb
+            result = delete_worksheet_xlw_with_wb(session.workbook, sheet_name)
         
         return result.get("message", "Worksheet deleted successfully") if "error" not in result else f"Error: {result['error']}"
         
@@ -923,46 +874,30 @@ def delete_worksheet(
 
 @mcp.tool()
 def rename_worksheet(
+    session_id: str,
     old_name: str,
-    new_name: str,
-    session_id: Optional[str] = None,
-    filepath: Optional[str] = None
+    new_name: str
 ) -> str:
     """
     Rename worksheet in workbook.
     
     Args:
+        session_id: Session ID from open_workbook (required)
         old_name: Current name of the worksheet
         new_name: New name for the worksheet
-        session_id: Session ID from open_workbook (preferred)
-        filepath: Path to Excel file (legacy, deprecated)
-        
-    Note: Use session_id for better performance. filepath parameter is deprecated.
     """
     try:
-        # Support both new (session_id) and old (filepath) API
-        if session_id:
-            # New API: use session
-            session = SESSION_MANAGER.get_session(session_id)
-            if not session:
-                return ERROR_TEMPLATES['SESSION_NOT_FOUND'].format(
-                    session_id=session_id, 
-                    ttl=10  # Default TTL is 10 minutes (600 seconds)
-                )
-            
-            with session.lock:
-                from xlwings_mcp.xlwings_impl.workbook_xlw import rename_worksheet_xlw_with_wb
-                result = rename_worksheet_xlw_with_wb(session.workbook, old_name, new_name)
-        elif filepath:
-            # Legacy API: backwards compatibility
-            logger.warning("Using deprecated filepath parameter. Please use session_id instead.")
-            full_path = get_excel_path(filepath)
-            result = rename_sheet(full_path, old_name, new_name)
-        else:
-            return ERROR_TEMPLATES['PARAMETER_MISSING'].format(
-                param1='session_id',
-                param2='filepath'
+        # Get session (required)
+        session = SESSION_MANAGER.get_session(session_id)
+        if not session:
+            return ERROR_TEMPLATES['SESSION_NOT_FOUND'].format(
+                session_id=session_id, 
+                ttl=10  # Default TTL is 10 minutes (600 seconds)
             )
+        
+        with session.lock:
+            from xlwings_mcp.xlwings_impl.sheet_xlw import rename_worksheet_xlw_with_wb
+            result = rename_worksheet_xlw_with_wb(session.workbook, old_name, new_name)
         
         return result.get("message", "Worksheet renamed successfully") if "error" not in result else f"Error: {result['error']}"
         
