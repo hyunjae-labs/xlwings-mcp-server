@@ -77,12 +77,12 @@ class ExcelSession:
         self.visible = visible
         self.read_only = read_only
         self.created_at = time.time()
-        self.last_access = time.time()
+        self.last_accessed = time.time()
         self.lock = threading.RLock()
         
     def touch(self):
         """Update last access time"""
-        self.last_access = time.time()
+        self.last_accessed = time.time()
         
     def get_info(self) -> Dict[str, Any]:
         """Get session information"""
@@ -92,7 +92,7 @@ class ExcelSession:
             "visible": self.visible,
             "read_only": self.read_only,
             "created_at": datetime.fromtimestamp(self.created_at).isoformat(),
-            "last_access": datetime.fromtimestamp(self.last_access).isoformat(),
+            "last_access": datetime.fromtimestamp(self.last_accessed).isoformat(),
             "sheets": [sheet.name for sheet in self.workbook.sheets] if self.workbook else []
         }
 
@@ -193,8 +193,8 @@ class ExcelSessionManager:
                 # Check if session is expired
                 if hasattr(session, 'last_accessed'):
                     time_since_access = time.time() - session.last_accessed
-                    if time_since_access > self.ttl:
-                        logger.warning(f"SESSION_TIMEOUT: Session '{session_id}' expired (last accessed {time_since_access:.0f}s ago, TTL={self.ttl}s)")
+                    if time_since_access > self._ttl:
+                        logger.warning(f"SESSION_TIMEOUT: Session '{session_id}' expired (last accessed {time_since_access:.0f}s ago, TTL={self._ttl}s)")
                         # Clean up expired session
                         try:
                             if session.workbook:
@@ -270,8 +270,8 @@ class ExcelSessionManager:
             return
         
         # Find LRU session
-        lru_session = min(self._sessions.values(), key=lambda s: s.last_access)
-        logger.info(f"Evicting LRU session {lru_session.id} (last access: {datetime.fromtimestamp(lru_session.last_access).isoformat()})")
+        lru_session = min(self._sessions.values(), key=lambda s: s.last_accessed)
+        logger.info(f"Evicting LRU session {lru_session.id} (last access: {datetime.fromtimestamp(lru_session.last_accessed).isoformat()})")
         
         # Close it
         self.close_workbook(lru_session.id, save=True)
@@ -287,7 +287,7 @@ class ExcelSessionManager:
                 
                 with self._sessions_lock:
                     for session_id, session in self._sessions.items():
-                        if current_time - session.last_access > self._ttl:
+                        if current_time - session.last_accessed > self._ttl:
                             expired_sessions.append(session_id)
                 
                 # Close expired sessions

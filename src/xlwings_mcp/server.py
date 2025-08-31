@@ -207,49 +207,32 @@ def force_close_workbook_by_path_tool(
 
 @mcp.tool()
 def apply_formula(
+    session_id: str,
     sheet_name: str,
     cell: str,
-    formula: str,
-    session_id: Optional[str] = None,
-    filepath: Optional[str] = None
+    formula: str
 ) -> str:
     """
     Apply Excel formula to cell.
     
     Args:
+        session_id: Session ID from open_workbook (required)
         sheet_name: Name of worksheet
         cell: Cell address (e.g., "A1")
         formula: Excel formula to apply
-        session_id: Session ID from open_workbook (preferred)
-        filepath: Path to Excel file (legacy, deprecated)
-        
-    Note: Use session_id for better performance. filepath parameter is deprecated.
     """
     try:
-        # Support both new (session_id) and old (filepath) API
-        if session_id:
-            # New API: use session
-            session = SESSION_MANAGER.get_session(session_id)
-            if not session:
-                return ERROR_TEMPLATES['SESSION_NOT_FOUND'].format(
-                    session_id=session_id, 
-                    ttl=10  # Default TTL is 10 minutes (600 seconds)
-                )
-            
-            with session.lock:
-                from xlwings_mcp.xlwings_impl.calculations_xlw import apply_formula_xlw_with_wb
-                result = apply_formula_xlw_with_wb(session.workbook, sheet_name, cell, formula)
-        elif filepath:
-            # Legacy API: backwards compatibility
-            logger.warning("Using deprecated filepath parameter. Please use session_id instead.")
-            full_path = get_excel_path(filepath)
-            from xlwings_mcp.xlwings_impl.calculations_xlw import apply_formula_xlw
-            result = apply_formula_xlw(full_path, sheet_name, cell, formula)
-        else:
-            return ERROR_TEMPLATES['PARAMETER_MISSING'].format(
-                param1='session_id',
-                param2='filepath'
+        # Get session (required)
+        session = SESSION_MANAGER.get_session(session_id)
+        if not session:
+            return ERROR_TEMPLATES['SESSION_NOT_FOUND'].format(
+                session_id=session_id, 
+                ttl=10  # Default TTL is 10 minutes (600 seconds)
             )
+        
+        with session.lock:
+            from xlwings_mcp.xlwings_impl.calculations_xlw import apply_formula_xlw_with_wb
+            result = apply_formula_xlw_with_wb(session.workbook, sheet_name, cell, formula)
         
         return result.get("message", "Formula applied successfully") if "error" not in result else f"Error: {result['error']}"
             
@@ -429,9 +412,8 @@ def format_range(
 
 @mcp.tool()
 def read_data_from_excel(
+    session_id: str,
     sheet_name: str,
-    session_id: Optional[str] = None,
-    filepath: Optional[str] = None,
     start_cell: Optional[str] = None,
     end_cell: Optional[str] = None,
     preview_only: bool = False
@@ -440,40 +422,24 @@ def read_data_from_excel(
     Read data from Excel worksheet with cell metadata including validation rules.
     
     Args:
+        session_id: Session ID from open_workbook (required)
         sheet_name: Name of worksheet
-        session_id: Session ID from open_workbook (preferred)
-        filepath: Path to Excel file (legacy, deprecated)
         start_cell: Starting cell (default A1)
         end_cell: Ending cell (optional, auto-expands if not provided)
         preview_only: Whether to return preview only
-        
-    Note: Use session_id for better performance. filepath parameter is deprecated.
     """
     try:
-        # Support both new (session_id) and old (filepath) API
-        if session_id:
-            # New API: use session
-            session = SESSION_MANAGER.get_session(session_id)
-            if not session:
-                return ERROR_TEMPLATES['SESSION_NOT_FOUND'].format(
-                    session_id=session_id, 
-                    ttl=10  # Default TTL is 10 minutes (600 seconds)
-                )
-            
-            with session.lock:
-                from xlwings_mcp.xlwings_impl.data_xlw import read_data_from_excel_xlw_with_wb
-                return read_data_from_excel_xlw_with_wb(session.workbook, sheet_name, start_cell, end_cell, preview_only)
-        elif filepath:
-            # Legacy API: backwards compatibility
-            logger.warning("Using deprecated filepath parameter. Please use session_id instead.")
-            full_path = get_excel_path(filepath)
-            from xlwings_mcp.xlwings_impl.data_xlw import read_data_from_excel_xlw
-            return read_data_from_excel_xlw(full_path, sheet_name, start_cell, end_cell, preview_only)
-        else:
-            return ERROR_TEMPLATES['PARAMETER_MISSING'].format(
-                param1='session_id',
-                param2='filepath'
+        # Get session (required)
+        session = SESSION_MANAGER.get_session(session_id)
+        if not session:
+            return ERROR_TEMPLATES['SESSION_NOT_FOUND'].format(
+                session_id=session_id, 
+                ttl=10  # Default TTL is 10 minutes (600 seconds)
             )
+        
+        with session.lock:
+            from xlwings_mcp.xlwings_impl.data_xlw import read_data_from_excel_xlw_with_wb
+            return read_data_from_excel_xlw_with_wb(session.workbook, sheet_name, start_cell, end_cell, preview_only)
         
     except (ValidationError, DataError) as e:
         return f"Error: {str(e)}"
@@ -483,10 +449,9 @@ def read_data_from_excel(
 
 @mcp.tool()
 def write_data_to_excel(
+    session_id: str,
     sheet_name: str,
     data: List[List],
-    session_id: Optional[str] = None,
-    filepath: Optional[str] = None,
     start_cell: Optional[str] = None
 ) -> str:
     """
@@ -494,39 +459,23 @@ def write_data_to_excel(
     Excel formula will write to cell without any verification.
 
     Args:
+        session_id: Session ID from open_workbook (required)
         sheet_name: Name of worksheet to write to
         data: List of lists containing data to write to the worksheet, sublists are assumed to be rows
-        session_id: Session ID from open_workbook (preferred)
-        filepath: Path to Excel file (legacy, deprecated)
         start_cell: Cell to start writing to (optional, auto-finds appropriate location)
-        
-    Note: Use session_id for better performance. filepath parameter is deprecated.
     """
     try:
-        # Support both new (session_id) and old (filepath) API
-        if session_id:
-            # New API: use session
-            session = SESSION_MANAGER.get_session(session_id)
-            if not session:
-                return ERROR_TEMPLATES['SESSION_NOT_FOUND'].format(
-                    session_id=session_id, 
-                    ttl=10  # Default TTL is 10 minutes (600 seconds)
-                )
-            
-            with session.lock:
-                from xlwings_mcp.xlwings_impl.data_xlw import write_data_to_excel_xlw_with_wb
-                result = write_data_to_excel_xlw_with_wb(session.workbook, sheet_name, data, start_cell)
-        elif filepath:
-            # Legacy API: backwards compatibility
-            logger.warning("Using deprecated filepath parameter. Please use session_id instead.")
-            full_path = get_excel_path(filepath)
-            from xlwings_mcp.xlwings_impl.data_xlw import write_data_to_excel_xlw
-            result = write_data_to_excel_xlw(full_path, sheet_name, data, start_cell)
-        else:
-            return ERROR_TEMPLATES['PARAMETER_MISSING'].format(
-                param1='session_id',
-                param2='filepath'
+        # Get session (required)
+        session = SESSION_MANAGER.get_session(session_id)
+        if not session:
+            return ERROR_TEMPLATES['SESSION_NOT_FOUND'].format(
+                session_id=session_id, 
+                ttl=10  # Default TTL is 10 minutes (600 seconds)
             )
+        
+        with session.lock:
+            from xlwings_mcp.xlwings_impl.data_xlw import write_data_to_excel_xlw_with_wb
+            result = write_data_to_excel_xlw_with_wb(session.workbook, sheet_name, data, start_cell)
         
         return result.get("message", "Data written successfully") if "error" not in result else f"Error: {result['error']}"
             
@@ -1730,6 +1679,12 @@ async def run_sse():
         logger.error(f"Server failed: {e}")
         raise
     finally:
+        # Clean up all sessions on shutdown
+        try:
+            SESSION_MANAGER.close_all_sessions()
+            logger.info("All Excel sessions closed")
+        except Exception as e:
+            logger.error(f"Error closing sessions during shutdown: {e}")
         logger.info("Server shutdown complete")
 
 async def run_streamable_http():
@@ -1749,6 +1704,12 @@ async def run_streamable_http():
         logger.error(f"Server failed: {e}")
         raise
     finally:
+        # Clean up all sessions on shutdown
+        try:
+            SESSION_MANAGER.close_all_sessions()
+            logger.info("All Excel sessions closed")
+        except Exception as e:
+            logger.error(f"Error closing sessions during shutdown: {e}")
         logger.info("Server shutdown complete")
 
 def run_stdio():
@@ -1764,4 +1725,10 @@ def run_stdio():
         logger.error(f"Server failed: {e}")
         raise
     finally:
+        # Clean up all sessions on shutdown
+        try:
+            SESSION_MANAGER.close_all_sessions()
+            logger.info("All Excel sessions closed")
+        except Exception as e:
+            logger.error(f"Error closing sessions during shutdown: {e}")
         logger.info("Server shutdown complete")
