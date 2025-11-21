@@ -99,6 +99,57 @@ mcp = FastMCP(
     instructions="Excel MCP Server for manipulating Excel files"
 )
 
+# Heartbeat decorator for long-running operations to prevent MCP timeout
+import asyncio
+from functools import wraps
+from typing import Callable
+from mcp.server.fastmcp import Context
+
+def with_heartbeat(interval_seconds: int = 30):
+    """
+    Decorator to send progress heartbeats during long-running tool execution.
+    Prevents 60-second MCP client timeout by sending notifications every 30 seconds.
+
+    Args:
+        interval_seconds: Interval between heartbeat notifications (default: 30)
+
+    Returns:
+        Decorator function that wraps sync tools to send async progress updates
+    """
+    def decorator(func: Callable) -> Callable:
+        @wraps(func)
+        async def wrapper(*args, ctx: Context, **kwargs):
+            # Start heartbeat background task
+            async def send_heartbeat():
+                counter = 1
+                while True:
+                    await asyncio.sleep(interval_seconds)
+                    try:
+                        await ctx.report_progress(
+                            progress=counter,
+                            total=None
+                        )
+                        counter += 1
+                    except Exception as e:
+                        logger.debug(f"Heartbeat notification failed: {e}")
+
+            heartbeat_task = asyncio.create_task(send_heartbeat())
+
+            try:
+                # Run original sync function in thread pool to avoid blocking
+                result = await asyncio.to_thread(func, *args, **kwargs)
+                return result
+            finally:
+                # Stop heartbeat task
+                heartbeat_task.cancel()
+                try:
+                    await heartbeat_task
+                except asyncio.CancelledError:
+                    pass
+
+        return wrapper
+    return decorator
+
 def get_excel_path(filename: str) -> str:
     """Get full path to Excel file.
     
@@ -317,6 +368,7 @@ def validate_formula_syntax(
         raise
 
 @mcp.tool()
+@with_heartbeat(interval_seconds=30)
 def format_range(
     sheet_name: str,
     start_cell: str,
@@ -336,7 +388,8 @@ def format_range(
     wrap_text: bool = False,
     merge_cells: bool = False,
     protection: Optional[Dict[str, Any]] = None,
-    conditional_format: Optional[Dict[str, Any]] = None
+    conditional_format: Optional[Dict[str, Any]] = None,
+    ctx: Context = None
 ) -> str:
     """
     Apply formatting to a range of cells.
@@ -432,12 +485,14 @@ def format_range(
         raise
 
 @mcp.tool()
+@with_heartbeat(interval_seconds=30)
 def read_data_from_excel(
     session_id: str,
     sheet_name: str,
     start_cell: Optional[str] = None,
     end_cell: Optional[str] = None,
-    preview_only: bool = False
+    preview_only: bool = False,
+    ctx: Context = None
 ) -> str:
     """
     Read data from Excel worksheet with cell metadata including validation rules.
@@ -466,11 +521,13 @@ def read_data_from_excel(
         raise
 
 @mcp.tool()
+@with_heartbeat(interval_seconds=30)
 def write_data_to_excel(
     session_id: str,
     sheet_name: str,
     data: List[List],
-    start_cell: Optional[str] = None
+    start_cell: Optional[str] = None,
+    ctx: Context = None
 ) -> str:
     """
     Write data to Excel worksheet.
@@ -576,6 +633,7 @@ def create_worksheet(
         raise
 
 @mcp.tool()
+@with_heartbeat(interval_seconds=30)
 def create_chart(
     sheet_name: str,
     data_range: str,
@@ -585,7 +643,8 @@ def create_chart(
     filepath: Optional[str] = None,
     title: str = "",
     x_axis: str = "",
-    y_axis: str = ""
+    y_axis: str = "",
+    ctx: Context = None
 ) -> str:
     """
     Create chart in worksheet.
@@ -656,6 +715,7 @@ def create_chart(
         raise
 
 @mcp.tool()
+@with_heartbeat(interval_seconds=30)
 def create_pivot_table(
     sheet_name: str,
     data_range: str,
@@ -667,7 +727,8 @@ def create_pivot_table(
     agg_func: str = "mean",
     target_sheet: Optional[str] = None,
     target_cell: Optional[str] = None,
-    pivot_name: Optional[str] = None
+    pivot_name: Optional[str] = None,
+    ctx: Context = None
 ) -> str:
     """
     Create pivot table in worksheet.
@@ -1106,6 +1167,7 @@ def get_merged_cells(
         raise
 
 @mcp.tool()
+@with_heartbeat(interval_seconds=30)
 def copy_range(
     sheet_name: str,
     source_start: str,
@@ -1113,7 +1175,8 @@ def copy_range(
     target_start: str,
     session_id: Optional[str] = None,
     filepath: Optional[str] = None,
-    target_sheet: Optional[str] = None
+    target_sheet: Optional[str] = None,
+    ctx: Context = None
 ) -> str:
     """
     Copy a range of cells to another location.
