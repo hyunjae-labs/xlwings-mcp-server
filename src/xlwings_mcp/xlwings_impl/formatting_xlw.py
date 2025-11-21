@@ -8,6 +8,8 @@ from typing import Dict, Any, Optional, Tuple
 import logging
 import os
 
+from .base import _com_initialize
+
 logger = logging.getLogger(__name__)
 
 # W3C CSS3 Standard Colors (16 Basic Colors)
@@ -123,9 +125,12 @@ def format_range_xlw(
     """
     app = None
     wb = None
-    
+
+    # Initialize COM for thread safety (Windows)
+    _com_initialize()
+
     try:
-        logger.info(f"🎨 Applying formatting to range {start_cell}:{end_cell or start_cell} in {sheet_name}")
+        logger.info(f"Applying formatting to range {start_cell}:{end_cell or start_cell} in {sheet_name}")
         
         # Check if file exists
         if not os.path.exists(filepath):
@@ -284,9 +289,12 @@ def validate_formula_syntax_xlw(
     """
     app = None
     wb = None
-    
+
+    # Initialize COM for thread safety (Windows)
+    _com_initialize()
+
     try:
-        logger.info(f"🔍 Validating formula syntax: {formula}")
+        logger.info(f"Validating formula syntax: {formula}")
         
         # Check if file exists
         if not os.path.exists(filepath):

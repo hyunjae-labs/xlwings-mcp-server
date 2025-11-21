@@ -8,6 +8,7 @@ import logging
 from typing import Dict, Any
 
 import xlwings as xw
+from .base import _com_initialize
 
 logger = logging.getLogger(__name__)
 
@@ -95,31 +96,34 @@ def apply_formula_xlw(
     """
     app = None
     wb = None
-    
+
+    # Initialize COM for thread safety (Windows)
+    _com_initialize()
+
     try:
         # 파일 경로 검증
         if not os.path.exists(filepath):
             return {"error": f"File not found: {filepath}"}
-        
+
         # Excel 앱 시작
         app = xw.App(visible=False, add_book=False)
-        
+
         # 워크북 열기
         wb = app.books.open(filepath)
-        
+
         # 시트 존재 확인
         if sheet_name not in [s.name for s in wb.sheets]:
             return {"error": f"Sheet '{sheet_name}' not found"}
-        
+
         ws = wb.sheets[sheet_name]
-        
+
         # 수식 정규화 (= 접두사 확인)
         if not formula.startswith('='):
             formula = f'={formula}'
-        
+
         # 셀 객체 가져오기
         cell_range = ws.range(cell)
-        
+
         # 수식 적용 (Excel이 자동으로 구문 검증)
         try:
             cell_range.formula = formula
@@ -261,28 +265,31 @@ def validate_formula_syntax_xlw(
     """
     app = None
     wb = None
-    
+
+    # Initialize COM for thread safety (Windows)
+    _com_initialize()
+
     try:
         # 파일 경로 검증
         if not os.path.exists(filepath):
             return {"error": f"File not found: {filepath}"}
-        
+
         # Excel 앱 시작
         app = xw.App(visible=False, add_book=False)
-        
+
         # 워크북 열기
         wb = app.books.open(filepath)
-        
+
         # 시트 존재 확인
         if sheet_name not in [s.name for s in wb.sheets]:
             return {"error": f"Sheet '{sheet_name}' not found"}
-        
+
         ws = wb.sheets[sheet_name]
-        
+
         # 수식 정규화
         if not formula.startswith('='):
             formula = f'={formula}'
-        
+
         # 백업용 원본 값 저장
         cell_range = ws.range(cell)
         original_value = cell_range.value

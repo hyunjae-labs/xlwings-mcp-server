@@ -137,7 +137,20 @@ def with_heartbeat(interval_seconds: int = 30):
 
             try:
                 # Run original sync function in thread pool to avoid blocking
-                result = await asyncio.to_thread(func, *args, **kwargs)
+                # Wrap with COM initialization for Windows thread safety
+                def run_with_com_init():
+                    try:
+                        import pythoncom
+                        pythoncom.CoInitialize()
+                        try:
+                            return func(*args, **kwargs)
+                        finally:
+                            pythoncom.CoUninitialize()
+                    except ImportError:
+                        # pythoncom not available (non-Windows), run directly
+                        return func(*args, **kwargs)
+
+                result = await asyncio.to_thread(run_with_com_init)
                 return result
             finally:
                 # Stop heartbeat task

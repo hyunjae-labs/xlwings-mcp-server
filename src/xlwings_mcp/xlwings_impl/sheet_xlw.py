@@ -9,28 +9,32 @@ from typing import Dict, Any
 from pathlib import Path
 
 import xlwings as xw
+from .base import _com_initialize
 
 logger = logging.getLogger(__name__)
 
 def create_worksheet_xlw(filepath: str, sheet_name: str) -> Dict[str, Any]:
     """xlwings를 사용한 워크시트 생성
-    
+
     Args:
         filepath: Excel 파일 경로
         sheet_name: 생성할 시트명
-        
+
     Returns:
         생성 결과 딕셔너리
     """
     app = None
     wb = None
-    
+
+    # Initialize COM for thread safety (Windows)
+    _com_initialize()
+
     try:
         # 파일 경로 검증
         file_path = Path(filepath)
         if not file_path.exists():
             return {"error": f"File not found: {filepath}"}
-        
+
         # Excel 앱 시작
         app = xw.App(visible=False, add_book=False)
         
@@ -229,17 +233,20 @@ def copy_worksheet_xlw_with_wb(wb, source_sheet: str, target_sheet: str) -> Dict
 
 def delete_worksheet_xlw(filepath: str, sheet_name: str) -> Dict[str, Any]:
     """xlwings를 사용한 워크시트 삭제
-    
+
     Args:
         filepath: Excel 파일 경로
         sheet_name: 삭제할 시트명
-        
+
     Returns:
         삭제 결과 딕셔너리
     """
     app = None
     wb = None
-    
+
+    # Initialize COM for thread safety (Windows)
+    _com_initialize()
+
     try:
         # 파일 경로 검증
         file_path = Path(filepath)
@@ -289,18 +296,21 @@ def delete_worksheet_xlw(filepath: str, sheet_name: str) -> Dict[str, Any]:
 
 def rename_worksheet_xlw(filepath: str, old_name: str, new_name: str) -> Dict[str, Any]:
     """xlwings를 사용한 워크시트 이름 변경
-    
+
     Args:
         filepath: Excel 파일 경로
         old_name: 기존 시트명
         new_name: 새 시트명
-        
+
     Returns:
         이름 변경 결과 딕셔너리
     """
     app = None
     wb = None
-    
+
+    # Initialize COM for thread safety (Windows)
+    _com_initialize()
+
     try:
         # 파일 경로 검증
         file_path = Path(filepath)
@@ -350,18 +360,21 @@ def rename_worksheet_xlw(filepath: str, old_name: str, new_name: str) -> Dict[st
 
 def copy_worksheet_xlw(filepath: str, source_sheet: str, target_sheet: str) -> Dict[str, Any]:
     """xlwings를 사용한 워크시트 복사
-    
+
     Args:
         filepath: Excel 파일 경로
         source_sheet: 원본 시트명
         target_sheet: 대상 시트명
-        
+
     Returns:
         복사 결과 딕셔너리
     """
     app = None
     wb = None
-    
+
+    # Initialize COM for thread safety (Windows)
+    _com_initialize()
+
     try:
         # 파일 경로 검증
         file_path = Path(filepath)

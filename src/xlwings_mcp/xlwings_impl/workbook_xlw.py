@@ -9,7 +9,7 @@ from typing import Dict, Any, Optional
 from pathlib import Path
 
 import xlwings as xw
-from .base import excel_context, validate_file_path, validate_sheet_exists
+from .base import excel_context, validate_file_path, validate_sheet_exists, _com_initialize
 
 logger = logging.getLogger(__name__)
 
@@ -164,12 +164,15 @@ def get_sheet_list_xlw(filepath: str) -> Dict[str, Any]:
     """
     app = None
     wb = None
-    
+
+    # Initialize COM for thread safety (Windows)
+    _com_initialize()
+
     try:
         # 파일 경로 검증
         if not os.path.exists(filepath):
             return {"error": f"File not found: {filepath}"}
-        
+
         # Excel 앱 시작
         app = xw.App(visible=False, add_book=False)
         

@@ -8,6 +8,8 @@ from typing import Dict, Any, List, Optional
 import logging
 import os
 
+from .base import _com_initialize
+
 logger = logging.getLogger(__name__)
 
 # Import session-based functions
@@ -45,9 +47,12 @@ def create_chart_xlw(
     """
     app = None
     wb = None
-    
+
+    # Initialize COM for thread safety (Windows)
+    _com_initialize()
+
     try:
-        logger.info(f"📈 Creating {chart_type} chart in {sheet_name}")
+        logger.info(f"Creating {chart_type} chart in {sheet_name}")
         
         # Check if file exists
         if not os.path.exists(filepath):
@@ -199,9 +204,12 @@ def create_pivot_table_xlw(
     """
     app = None
     wb = None
-    
+
+    # Initialize COM for thread safety (Windows)
+    _com_initialize()
+
     try:
-        logger.info(f"📊 Creating pivot table in {sheet_name}")
+        logger.info(f"Creating pivot table in {sheet_name}")
         
         # Check if file exists
         if not os.path.exists(filepath):
@@ -469,9 +477,12 @@ def create_table_xlw(
     """
     app = None
     wb = None
-    
+
+    # Initialize COM for thread safety (Windows)
+    _com_initialize()
+
     try:
-        logger.info(f"📋 Creating Excel table in {sheet_name}")
+        logger.info(f"Creating Excel table in {sheet_name}")
         
         # Check if file exists
         if not os.path.exists(filepath):

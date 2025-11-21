@@ -14,34 +14,89 @@ import xlwings as xw
 logger = logging.getLogger(__name__)
 
 
+# =============================================================================
+# COM Initialization Utilities for Windows Thread Safety
+# =============================================================================
+
+def _com_initialize():
+    """Initialize COM for current thread (Windows only).
+
+    This must be called before any xlwings/COM operations in a new thread.
+    Safe to call multiple times (reference counted).
+
+    Returns:
+        bool: True if COM was initialized, False if pythoncom not available
+    """
+    try:
+        import pythoncom
+        pythoncom.CoInitialize()
+        return True
+    except ImportError:
+        # Non-Windows platform, COM not needed
+        return False
+
+
+def _com_uninitialize():
+    """Uninitialize COM for current thread (Windows only).
+
+    Should be called to balance each _com_initialize() call.
+    """
+    try:
+        import pythoncom
+        pythoncom.CoUninitialize()
+    except ImportError:
+        pass
+
+
+@contextmanager
+def com_context():
+    """Context manager for COM initialization.
+
+    Ensures COM is properly initialized and uninitialized for the current thread.
+    Use this wrapper around xlwings operations in non-main threads.
+
+    Example:
+        with com_context():
+            app = xw.App(visible=False)
+            # ... xlwings operations ...
+            app.quit()
+    """
+    initialized = _com_initialize()
+    try:
+        yield
+    finally:
+        if initialized:
+            _com_uninitialize()
+
+
 @contextmanager
 def excel_context(
-    filepath: str, 
+    filepath: str,
     visible: bool = False,
     create_if_not_exists: bool = False,
     sheet_name: str = "Sheet1"
 ) -> Generator[xw.Book, None, None]:
     """Excel 앱과 워크북을 관리하는 context manager
-    
+
     Args:
         filepath: Excel 파일 경로
         visible: Excel 앱 가시성 (기본값: False)
         create_if_not_exists: 파일이 없을 경우 생성 여부 (기본값: False)
         sheet_name: 새 파일 생성 시 기본 시트명 (기본값: "Sheet1")
-        
+
     Yields:
         xw.Book: xlwings 워크북 객체
-        
+
     Raises:
         FileNotFoundError: 파일이 없고 create_if_not_exists=False인 경우
         Exception: Excel 앱/워크북 관련 오류
-        
+
     Example:
         # 기존 파일 열기
         with excel_context("/path/to/file.xlsx") as wb:
             sheet = wb.sheets["Sheet1"]
             data = sheet.range("A1:C3").value
-            
+
         # 새 파일 생성
         with excel_context("/path/to/new.xlsx", create_if_not_exists=True) as wb:
             wb.sheets[0].range("A1").value = "Hello World"
@@ -49,14 +104,17 @@ def excel_context(
     """
     app = None
     wb = None
-    
+
+    # Initialize COM for thread safety (Windows)
+    _com_initialize()
+
     try:
         # 파일 경로 검증
         file_path = Path(filepath)
-        
+
         if not file_path.exists() and not create_if_not_exists:
             raise FileNotFoundError(f"File not found: {filepath}")
-        
+
         # Excel 앱 시작
         logger.debug(f"Starting Excel app (visible={visible})")
         app = xw.App(visible=visible, add_book=False)
@@ -107,15 +165,15 @@ def excel_context(
 @contextmanager
 def excel_app_context(visible: bool = False) -> Generator[xw.App, None, None]:
     """Excel 앱만을 관리하는 context manager
-    
+
     워크북을 직접 생성하거나 여러 워크북을 다룰 때 사용
-    
+
     Args:
         visible: Excel 앱 가시성 (기본값: False)
-        
+
     Yields:
         xw.App: xlwings 앱 객체
-        
+
     Example:
         with excel_app_context() as app:
             wb1 = app.books.add()
@@ -125,16 +183,19 @@ def excel_app_context(visible: bool = False) -> Generator[xw.App, None, None]:
             wb2.close()
     """
     app = None
-    
+
+    # Initialize COM for thread safety (Windows)
+    _com_initialize()
+
     try:
         logger.debug(f"Starting Excel app context (visible={visible})")
         app = xw.App(visible=visible, add_book=False)
         yield app
-        
+
     except Exception as e:
         logger.error(f"Excel app context error: {e}")
         raise
-        
+
     finally:
         if app:
             try:

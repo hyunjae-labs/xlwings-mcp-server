@@ -8,31 +8,36 @@ from typing import List, Dict, Any, Optional, Tuple
 import logging
 import os
 
+from .base import _com_initialize
+
 logger = logging.getLogger(__name__)
 
 def merge_cells_xlw(filepath: str, sheet_name: str, start_cell: str, end_cell: str) -> Dict[str, Any]:
     """
     Merge cells in Excel using xlwings.
-    
+
     Args:
         filepath: Path to Excel file
         sheet_name: Name of worksheet
         start_cell: Top-left cell of merge range
         end_cell: Bottom-right cell of merge range
-        
+
     Returns:
         Dict with success message or error
     """
     app = None
     wb = None
-    
+
+    # Initialize COM for thread safety (Windows)
+    _com_initialize()
+
     try:
-        logger.info(f"🔗 Merging cells {start_cell}:{end_cell} in {sheet_name}")
-        
+        logger.info(f"Merging cells {start_cell}:{end_cell} in {sheet_name}")
+
         # Check if file exists
         if not os.path.exists(filepath):
             return {"error": f"File not found: {filepath}"}
-        
+
         # Open Excel app and workbook
         app = xw.App(visible=False, add_book=False)
         wb = app.books.open(filepath)
@@ -90,9 +95,12 @@ def unmerge_cells_xlw(filepath: str, sheet_name: str, start_cell: str, end_cell:
     """
     app = None
     wb = None
-    
+
+    # Initialize COM for thread safety (Windows)
+    _com_initialize()
+
     try:
-        logger.info(f"🔓 Unmerging cells {start_cell}:{end_cell} in {sheet_name}")
+        logger.info(f"Unmerging cells {start_cell}:{end_cell} in {sheet_name}")
         
         # Check if file exists
         if not os.path.exists(filepath):
@@ -153,9 +161,12 @@ def get_merged_cells_xlw(filepath: str, sheet_name: str) -> Dict[str, Any]:
     """
     app = None
     wb = None
-    
+
+    # Initialize COM for thread safety (Windows)
+    _com_initialize()
+
     try:
-        logger.info(f"📊 Getting merged cells in {sheet_name}")
+        logger.info(f"Getting merged cells in {sheet_name}")
         
         # Check if file exists
         if not os.path.exists(filepath):
@@ -288,12 +299,15 @@ def copy_range_xlw(
     """
     app = None
     wb = None
-    
+
+    # Initialize COM for thread safety (Windows)
+    _com_initialize()
+
     try:
         # Use target_sheet if provided, otherwise use source sheet
         target_sheet = target_sheet or sheet_name
-        
-        logger.info(f"📋 Copying range {source_start}:{source_end} to {target_start} in {target_sheet}")
+
+        logger.info(f"Copying range {source_start}:{source_end} to {target_start} in {target_sheet}")
         
         # Check if file exists
         if not os.path.exists(filepath):
@@ -372,9 +386,12 @@ def delete_range_xlw(
     """
     app = None
     wb = None
-    
+
+    # Initialize COM for thread safety (Windows)
+    _com_initialize()
+
     try:
-        logger.info(f"🗑️ Deleting range {start_cell}:{end_cell} in {sheet_name}, shift {shift_direction}")
+        logger.info(f"Deleting range {start_cell}:{end_cell} in {sheet_name}, shift {shift_direction}")
         
         # Validate shift direction
         if shift_direction not in ["up", "left"]:
@@ -446,9 +463,12 @@ def batch_range_operations_xlw(
     app = None
     wb = None
     results = []
-    
+
+    # Initialize COM for thread safety (Windows)
+    _com_initialize()
+
     try:
-        logger.info(f"⚡ Executing {len(operations)} batch operations")
+        logger.info(f"Executing {len(operations)} batch operations")
         
         # Check if file exists
         if not os.path.exists(filepath):

@@ -9,6 +9,8 @@ import logging
 import os
 import json
 
+from .base import _com_initialize
+
 logger = logging.getLogger(__name__)
 
 
@@ -31,9 +33,12 @@ def get_data_validation_info_xlw(
     """
     app = None
     wb = None
-    
+
+    # Initialize COM for thread safety (Windows)
+    _com_initialize()
+
     try:
-        logger.info(f"🔍 Getting data validation info for {sheet_name}")
+        logger.info(f"Getting data validation info for {sheet_name}")
         
         # Check if file exists
         if not os.path.exists(filepath):
@@ -245,9 +250,12 @@ def validate_excel_range_xlw(
     """
     app = None
     wb = None
-    
+
+    # Initialize COM for thread safety (Windows)
+    _com_initialize()
+
     try:
-        logger.info(f"🔍 Validating range {start_cell}:{end_cell or start_cell} in {sheet_name}")
+        logger.info(f"Validating range {start_cell}:{end_cell or start_cell} in {sheet_name}")
         
         # Check if file exists
         if not os.path.exists(filepath):

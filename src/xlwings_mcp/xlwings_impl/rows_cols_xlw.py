@@ -8,6 +8,8 @@ from typing import Dict, Any
 import logging
 import os
 
+from .base import _com_initialize
+
 logger = logging.getLogger(__name__)
 
 
@@ -31,9 +33,12 @@ def insert_rows_xlw(
     """
     app = None
     wb = None
-    
+
+    # Initialize COM for thread safety (Windows)
+    _com_initialize()
+
     try:
-        logger.info(f"📊 Inserting {count} rows at row {start_row} in {sheet_name}")
+        logger.info(f"Inserting {count} rows at row {start_row} in {sheet_name}")
         
         # Check if file exists
         if not os.path.exists(filepath):
@@ -100,9 +105,12 @@ def insert_columns_xlw(
     """
     app = None
     wb = None
-    
+
+    # Initialize COM for thread safety (Windows)
+    _com_initialize()
+
     try:
-        logger.info(f"📊 Inserting {count} columns at column {start_col} in {sheet_name}")
+        logger.info(f"Inserting {count} columns at column {start_col} in {sheet_name}")
         
         # Check if file exists
         if not os.path.exists(filepath):
@@ -178,9 +186,12 @@ def delete_sheet_rows_xlw(
     """
     app = None
     wb = None
-    
+
+    # Initialize COM for thread safety (Windows)
+    _com_initialize()
+
     try:
-        logger.info(f"🗑️ Deleting {count} rows starting from row {start_row} in {sheet_name}")
+        logger.info(f"Deleting {count} rows starting from row {start_row} in {sheet_name}")
         
         # Check if file exists
         if not os.path.exists(filepath):
@@ -245,9 +256,12 @@ def delete_sheet_columns_xlw(
     """
     app = None
     wb = None
-    
+
+    # Initialize COM for thread safety (Windows)
+    _com_initialize()
+
     try:
-        logger.info(f"🗑️ Deleting {count} columns starting from column {start_col} in {sheet_name}")
+        logger.info(f"Deleting {count} columns starting from column {start_col} in {sheet_name}")
         
         # Check if file exists
         if not os.path.exists(filepath):

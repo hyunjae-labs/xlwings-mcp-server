@@ -11,6 +11,7 @@ from pathlib import Path
 
 import xlwings as xw
 from .helpers import ExcelHelper
+from .base import _com_initialize
 
 logger = logging.getLogger(__name__)
 
@@ -22,20 +23,23 @@ def read_data_from_excel_xlw(
     preview_only: bool = False
 ) -> str:
     """xlwings를 사용한 데이터 읽기
-    
+
     Args:
         filepath: Excel 파일 경로
         sheet_name: 시트명
         start_cell: 시작 셀 (기본값: A1)
         end_cell: 종료 셀 (선택사항, 자동 확장)
         preview_only: 미리보기 모드 (현재 미사용)
-        
+
     Returns:
         JSON 형식의 문자열 - 셀 메타데이터와 함께 구조화된 데이터
     """
     app = None
     wb = None
-    
+
+    # Initialize COM for thread safety (Windows)
+    _com_initialize()
+
     try:
         # Excel 앱 시작 (백그라운드에서)
         app = xw.App(visible=False, add_book=False)
@@ -150,24 +154,27 @@ def write_data_to_excel_xlw(
     start_cell: Optional[str] = None
 ) -> Dict[str, str]:
     """xlwings를 사용한 데이터 쓰기
-    
+
     Args:
         filepath: Excel 파일 경로
         sheet_name: 시트명
         data: 쓸 데이터 (2차원 리스트)
         start_cell: 시작 셀 (기본값: A1)
-        
+
     Returns:
         작업 결과 메시지 딕셔너리
     """
     app = None
     wb = None
-    
+
+    # Initialize COM for thread safety (Windows)
+    _com_initialize()
+
     try:
         # 데이터 검증
         if not data:
             return {"error": "No data provided to write"}
-        
+
         # Excel 앱 시작
         app = xw.App(visible=False, add_book=False)
         

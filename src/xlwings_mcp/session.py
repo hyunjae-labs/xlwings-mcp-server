@@ -17,6 +17,25 @@ import xlwings as xw
 logger = logging.getLogger(__name__)
 
 
+# COM initialization helper for Windows thread safety
+def _com_initialize():
+    """Initialize COM for current thread (Windows only)"""
+    try:
+        import pythoncom
+        pythoncom.CoInitialize()
+        return True
+    except ImportError:
+        return False
+
+def _com_uninitialize():
+    """Uninitialize COM for current thread (Windows only)"""
+    try:
+        import pythoncom
+        pythoncom.CoUninitialize()
+    except ImportError:
+        pass
+
+
 def is_file_locked(filepath: str) -> bool:
     """
     Check if a file is locked by another process.
@@ -249,22 +268,25 @@ class ExcelSessionManager:
             if excess_count > 0:
                 logger.debug(f"MEMORY_CLEANUP: Removed {excess_count} old expired sessions from history")
     
-    def open_workbook(self, filepath: str, visible: bool = False, 
+    def open_workbook(self, filepath: str, visible: bool = False,
                      read_only: bool = False) -> str:
         """Open a workbook and create a new session"""
-        
+
         # Generate session ID
         session_id = str(uuid.uuid4())
-        
+
         # Check if we need to evict old sessions (LRU)
         with self._sessions_lock:
             if len(self._sessions) >= self._max_sessions:
                 self._evict_lru_session()
-        
+
+        # Ensure COM is initialized for this thread (needed for auto-recovery in worker threads)
+        _com_initialize()
+
         try:
             # Log session creation
             logger.debug(f"Creating session {session_id} for {filepath} (visible={visible}, read_only={read_only})")
-            
+
             # Create Excel app instance
             app = xw.App(visible=visible, add_book=False)
             app.display_alerts = False
@@ -310,6 +332,9 @@ class ExcelSessionManager:
     
     def get_session(self, session_id: str) -> Optional[ExcelSession]:
         """Get a session by ID with automatic recovery support"""
+        # Ensure COM is initialized for this thread (needed for cleanup/recovery operations)
+        _com_initialize()
+
         with self._sessions_lock:
             # Check for redirect first (if session was recovered)
             actual_session_id = self._session_redirects.get(session_id, session_id)
@@ -372,6 +397,9 @@ class ExcelSessionManager:
     
     def close_workbook(self, session_id: str, save: bool = True) -> bool:
         """Close a workbook and remove session"""
+        # Ensure COM is initialized for this thread
+        _com_initialize()
+
         with self._sessions_lock:
             # Handle redirect mapping if exists
             actual_session_id = self._session_redirects.get(session_id, session_id)
@@ -460,75 +488,82 @@ class ExcelSessionManager:
     
     def _cleanup_worker(self):
         """Background thread to clean up expired sessions while preserving recovery info"""
-        while True:
-            try:
-                time.sleep(30)  # Check every 30 seconds
-                
-                current_time = time.time()
-                expired_sessions = []
-                
-                with self._sessions_lock:
-                    for session_id, session in self._sessions.items():
-                        if current_time - session.last_accessed > self._ttl:
-                            expired_sessions.append((session_id, session))
-                
-                # Process expired sessions - move to history instead of permanent deletion
-                for session_id, session in expired_sessions:
-                    logger.info(f"TTL_CLEANUP: Moving expired session '{session_id}' to recovery history (TTL={self._ttl}s)")
-                    try:
-                        with self._sessions_lock:
-                            # Extract session info for recovery before cleanup
-                            session_info = self._extract_session_info(session)
-                            
-                            # Clean up Excel resources with zombie process protection
-                            cleanup_success = False
-                            try:
-                                if session.workbook:
-                                    session.workbook.close()
-                                if session.app:
-                                    session.app.quit()
-                                cleanup_success = True
-                                logger.debug(f"TTL_CLEANUP: Excel resources cleaned normally for session {session_id}")
-                            except Exception as cleanup_error:
-                                logger.warning(f"Normal cleanup failed for session {session_id}: {cleanup_error}")
-                            
-                            # Force kill zombie process if normal cleanup failed
-                            if not cleanup_success and hasattr(session, 'process_id') and session.process_id:
-                                try:
-                                    import psutil
-                                    import subprocess
-                                    
-                                    # Check if process still exists
-                                    if psutil.pid_exists(session.process_id):
-                                        logger.warning(f"TTL_CLEANUP: Force killing zombie Excel process {session.process_id} for session {session_id}")
-                                        subprocess.run(['taskkill', '/F', '/PID', str(session.process_id)], 
-                                                     capture_output=True, check=False)
-                                        logger.info(f"TTL_CLEANUP: Zombie process {session.process_id} terminated")
-                                except Exception as force_kill_error:
-                                    logger.error(f"Failed to force kill process {session.process_id}: {force_kill_error}")
-                            
-                            # Move to expired sessions for potential recovery
-                            self._expired_sessions[session_id] = session_info
-                            self._manage_expired_history()
-                            
-                            # Remove from active sessions
-                            if session_id in self._sessions:
-                                del self._sessions[session_id]
-                            
-                            logger.debug(f"TTL_CLEANUP: Session '{session_id}' moved to recovery history (active: {len(self._sessions)}, history: {len(self._expired_sessions)})")
-                            
-                    except Exception as e:
-                        logger.error(f"Error processing expired session {session_id}: {e}")
-                        # Force cleanup if regular cleanup fails
+        # Initialize COM for this background thread (Windows only)
+        _com_initialize()
+
+        try:
+            while True:
+                try:
+                    time.sleep(30)  # Check every 30 seconds
+
+                    current_time = time.time()
+                    expired_sessions = []
+
+                    with self._sessions_lock:
+                        for session_id, session in self._sessions.items():
+                            if current_time - session.last_accessed > self._ttl:
+                                expired_sessions.append((session_id, session))
+
+                    # Process expired sessions - move to history instead of permanent deletion
+                    for session_id, session in expired_sessions:
+                        logger.info(f"TTL_CLEANUP: Moving expired session '{session_id}' to recovery history (TTL={self._ttl}s)")
                         try:
                             with self._sessions_lock:
+                                # Extract session info for recovery before cleanup
+                                session_info = self._extract_session_info(session)
+
+                                # Clean up Excel resources with zombie process protection
+                                cleanup_success = False
+                                try:
+                                    if session.workbook:
+                                        session.workbook.close()
+                                    if session.app:
+                                        session.app.quit()
+                                    cleanup_success = True
+                                    logger.debug(f"TTL_CLEANUP: Excel resources cleaned normally for session {session_id}")
+                                except Exception as cleanup_error:
+                                    logger.warning(f"Normal cleanup failed for session {session_id}: {cleanup_error}")
+
+                                # Force kill zombie process if normal cleanup failed
+                                if not cleanup_success and hasattr(session, 'process_id') and session.process_id:
+                                    try:
+                                        import psutil
+                                        import subprocess
+
+                                        # Check if process still exists
+                                        if psutil.pid_exists(session.process_id):
+                                            logger.warning(f"TTL_CLEANUP: Force killing zombie Excel process {session.process_id} for session {session_id}")
+                                            subprocess.run(['taskkill', '/F', '/PID', str(session.process_id)],
+                                                         capture_output=True, check=False)
+                                            logger.info(f"TTL_CLEANUP: Zombie process {session.process_id} terminated")
+                                    except Exception as force_kill_error:
+                                        logger.error(f"Failed to force kill process {session.process_id}: {force_kill_error}")
+
+                                # Move to expired sessions for potential recovery
+                                self._expired_sessions[session_id] = session_info
+                                self._manage_expired_history()
+
+                                # Remove from active sessions
                                 if session_id in self._sessions:
                                     del self._sessions[session_id]
-                        except:
-                            pass
-                        
-            except Exception as e:
-                logger.error(f"Error in cleanup worker: {e}")
+
+                                logger.debug(f"TTL_CLEANUP: Session '{session_id}' moved to recovery history (active: {len(self._sessions)}, history: {len(self._expired_sessions)})")
+
+                        except Exception as e:
+                            logger.error(f"Error processing expired session {session_id}: {e}")
+                            # Force cleanup if regular cleanup fails
+                            try:
+                                with self._sessions_lock:
+                                    if session_id in self._sessions:
+                                        del self._sessions[session_id]
+                            except:
+                                pass
+
+                except Exception as e:
+                    logger.error(f"Error in cleanup worker: {e}")
+        finally:
+            # Cleanup COM when thread exits
+            _com_uninitialize()
 
 
 # Global singleton instance
